@@ -70,3 +70,33 @@ git:
 # ChromaDB
 chroma:
   persist_directory: "data/chroma"
+
+# MCP (Model Context Protocol)
+mcp:
+  enabled: true
+  servers:
+    # Core ScribeNet functionality as MCP server
+    - name: "scribenet-core"
+      type: "stdio"
+      command: "python"
+      args: ["-m", "backend.mcp.servers.core_server"]
+      
+    # Filesystem operations (to be implemented)
+    # - name: "filesystem"
+    #   type: "stdio"
+    #   command: "python"
+    #   args: ["-m", "backend.mcp.servers.filesystem_server"]
+    
+    # Git operations (to be implemented)
+    # - name: "git"
+    #   type: "stdio"
+    #   command: "python"
+    #   args: ["-m", "backend.mcp.servers.git_server"]
+    
+    # External MCP servers (examples)
+    # - name: "github"
+    #   type: "http"
+    #   url: "https://api.github.com/mcp"
+    #   auth:
+    #     type: "bearer"
+    #     token: "${GITHUB_TOKEN}"

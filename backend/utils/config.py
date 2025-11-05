@@ -84,6 +84,23 @@ class ChromaConfig(BaseModel):
     persist_directory: str = "data/chroma"
 
 
+class MCPServerConfig(BaseModel):
+    """MCP Server configuration."""
+    name: str
+    type: str = "stdio"  # "stdio" or "http"
+    command: Optional[str] = None
+    args: Optional[list[str]] = None
+    env: Optional[Dict[str, str]] = None
+    url: Optional[str] = None
+    auth: Optional[Dict[str, str]] = None
+
+
+class MCPConfig(BaseModel):
+    """MCP configuration."""
+    enabled: bool = True
+    servers: list[MCPServerConfig] = Field(default_factory=list)
+
+
 class Config(BaseModel):
     """Main configuration."""
     project: ProjectConfig
@@ -93,6 +110,7 @@ class Config(BaseModel):
     database: DatabaseConfig
     git: GitConfig
     chroma: ChromaConfig
+    mcp: Optional[MCPConfig] = None
 
 
 class ConfigManager:
