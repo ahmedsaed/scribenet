@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "scribenet"
+version = "0.1.0"
+description = "A self-hosted multi-agent system for collaborative book writing"
+authors = ["Ahmed"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.12"
+fastapi = "^0.109.0"
+uvicorn = {extras = ["standard"], version = "^0.27.0"}
+sqlalchemy = "^2.0.25"
+pydantic = "^2.5.3"
+pydantic-settings = "^2.1.0"
+langgraph = "^0.0.28"
+langchain = "^0.1.0"
+langchain-core = "^0.1.0"
+chromadb = "^0.4.22"
+gitpython = "^3.1.41"
+python-multipart = "^0.0.6"
+pyyaml = "^6.0.1"
+httpx = "^0.26.0"
+websockets = "^12.0"
+tiktoken = "^0.6.0"
+python-dateutil = "^2.8.2"
+sentence-transformers = "^2.2.2"
+rich = "^13.5.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.4"
+black = "^24.1.1"
+ruff = "^0.1.14"
+mypy = "^1.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

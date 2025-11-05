@@ -1,0 +1,72 @@
+# Project settings
+project:
+  default_word_count_per_chapter: 3000
+  max_revision_iterations: 3
+  quality_threshold: 7.0
+  recent_chapters_in_context: 2
+
+# Agent configuration
+agents:
+  director:
+    model: "llama3.1:8b"
+    temperature: 0.7
+  outline:
+    model: "llama3.1:8b"
+    temperature: 0.6
+  writers:
+    narrative:
+      model: "llama3.1:8b"
+      temperature: 0.8
+    dialogue:
+      model: "llama3.1:8b"
+      temperature: 0.9
+    description:
+      model: "llama3.1:8b"
+      temperature: 0.85
+  editors:
+    grammar:
+      model: "llama3.1:8b"
+      temperature: 0.3
+    style:
+      model: "llama3.1:8b"
+      temperature: 0.4
+    continuity:
+      model: "llama3.1:8b"
+      temperature: 0.5
+  critic:
+    model: "llama3.1:8b"
+    temperature: 0.5
+  summarizer:
+    model: "llama3.1:8b"
+    temperature: 0.4
+    compression_ratio: 10
+
+# Memory configuration
+memory:
+  chroma_collection: "scribenet"
+  embedding_model: "all-MiniLM-L6-v2"
+  vector_search_top_k: 5
+  context_window_threshold: 0.8
+
+# LLM configuration
+llm:
+  mode: "single"  # single mode (best for 12GB GPU)
+  single_model: "llama3.1:8b"
+  ollama_url: "http://localhost:11434"
+  max_tokens: 8192
+  timeout: 120
+  num_ctx: 32768  # Context window size
+
+# Database
+database:
+  path: "data/scribenet.db"
+
+# Git
+git:
+  auto_commit: true
+  commit_on: ["chapter_complete", "outline_update"]
+  projects_path: "data/projects"
+
+# ChromaDB
+chroma:
+  persist_directory: "data/chroma"
