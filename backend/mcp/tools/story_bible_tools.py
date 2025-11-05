@@ -128,11 +128,14 @@ class StoryBibleTools(BaseTool):
             return self.format_error(f"Project '{project_id}' not found.")
         
         # Create story element
+        import uuid
+        element_id = str(uuid.uuid4())
         self.db.create_story_element(
+            element_id=element_id,
             project_id=project_id,
             element_type=element_type,
             name=name,
-            description=description
+            data={"description": description}
         )
         
         # Add to vector store for semantic search

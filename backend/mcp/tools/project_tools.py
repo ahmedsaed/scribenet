@@ -135,23 +135,34 @@ class ProjectTools(BaseTool):
     
     async def _create_project(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Create a new project."""
+        import uuid
+        
         title = arguments["title"]
         genre = arguments["genre"]
         description = arguments.get("description", "")
         target_chapters = arguments.get("target_chapters", 20)
         
+        project_id = f"project-{uuid.uuid4()}"
+        
+        # Note: Database doesn't have description field, we use vision_document
+        # But we'll store description as initial vision_document
         project = self.db.create_project(
+            project_id=project_id,
             title=title,
             genre=genre,
-            description=description,
-            target_chapters=target_chapters
+            vision_document=description if description else None
         )
         
-        result = f"Created project: {project['title']}\n"
+        # Update target_chapters separately if needed
+        if target_chapters:
+            self.db.update_project(project_id, target_chapters=target_chapters)
+            project = self.db.get_project(project_id)
+        
+        result = f"✅ Created project: {project['title']}\n"
         result += f"ID: {project['id']}\n"
         result += f"Genre: {project['genre']}\n"
-        result += f"Target Chapters: {target_chapters}\n\n"
-        result += "Next steps:\n"
+        result += f"Target Chapters: {target_chapters}\n"
+        result += "\nNext steps:\n"
         result += "1. Use 'generate_outline' to create the story structure\n"
         result += "2. Use 'write_chapter' to start writing chapters\n"
         

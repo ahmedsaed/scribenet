@@ -48,7 +48,9 @@ class Database:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status TEXT DEFAULT 'planning',
-                    vision_document TEXT
+                    vision_document TEXT,
+                    outline TEXT,
+                    target_chapters INTEGER DEFAULT 20
                 )
             """)
 
@@ -201,6 +203,18 @@ class Database:
             except Exception:
                 # Non-fatal: older DBs may not support altering, ignore errors
                 pass
+            
+            # Ensure outline and target_chapters columns exist on projects table
+            try:
+                cursor.execute("PRAGMA table_info(projects)")
+                existing = [row[1] for row in cursor.fetchall()]
+                if 'outline' not in existing:
+                    cursor.execute("ALTER TABLE projects ADD COLUMN outline TEXT")
+                if 'target_chapters' not in existing:
+                    cursor.execute("ALTER TABLE projects ADD COLUMN target_chapters INTEGER DEFAULT 20")
+            except Exception:
+                # Non-fatal: older DBs may not support altering, ignore errors
+                pass
 
     # ==================== Project Operations ====================
 
@@ -245,7 +259,7 @@ class Database:
 
     def update_project(self, project_id: str, **kwargs) -> Optional[Dict[str, Any]]:
         """Update project fields."""
-        allowed_fields = ["title", "genre", "status", "vision_document"]
+        allowed_fields = ["title", "genre", "status", "vision_document", "outline", "target_chapters"]
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
 
         if not updates:

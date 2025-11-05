@@ -2,7 +2,7 @@
 Critique and revision tools for MCP.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from mcp.types import Tool, TextContent
 
 from backend.mcp.tools.base import BaseTool
@@ -82,12 +82,25 @@ class CritiqueTools(BaseTool):
         else:
             raise ValueError(f"Unknown tool: {tool_name}")
     
+    def _get_chapter_by_number(self, project_id: str, chapter_number: int) -> Optional[Dict[str, Any]]:
+        """Helper method to get a chapter by project ID and chapter number with content."""
+        chapters = self.db.list_chapters(project_id)
+        for chapter in chapters:
+            if chapter['chapter_number'] == chapter_number:
+                # Get the content from latest version
+                chapter_id = chapter['id']
+                content = self.db.get_latest_chapter_content(chapter_id)
+                if content:
+                    chapter['content'] = content
+                return chapter
+        return None
+    
     async def _critique_chapter(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Critique a chapter."""
         project_id = arguments["project_id"]
         chapter_number = arguments["chapter_number"]
         
-        chapter = self.db.get_chapter(project_id, chapter_number)
+        chapter = self._get_chapter_by_number(project_id, chapter_number)  # Fixed: use helper method
         if not chapter:
             return self.format_error(f"Chapter {chapter_number} not found.")
         
@@ -107,13 +120,20 @@ class CritiqueTools(BaseTool):
         )
         
         # Save scores to database
+        import uuid
+        score_id = str(uuid.uuid4())
         scores = critique_result.get('scores', {})
+        overall_score = scores.get('overall_score', 0)
         self.db.save_score(
+            score_id=score_id,
             project_id=project_id,
-            chapter_number=chapter_number,
+            chapter_id=chapter['id'],
+            content_type='chapter',
             scores=scores,
+            overall_score=overall_score,
             feedback=critique_result.get('feedback', ''),
-            needs_revision=critique_result.get('needs_revision', False)
+            requires_revision=critique_result.get('needs_revision', False),
+            revision_priority='medium' if critique_result.get('needs_revision', False) else 'none'
         )
         
         # Format result
@@ -140,7 +160,7 @@ class CritiqueTools(BaseTool):
         chapter_number = arguments["chapter_number"]
         focus_areas = arguments.get("focus_areas", ["grammar", "style", "continuity"])
         
-        chapter = self.db.get_chapter(project_id, chapter_number)
+        chapter = self._get_chapter_by_number(project_id, chapter_number)  # Fixed: use helper method
         if not chapter:
             return self.format_error(f"Chapter {chapter_number} not found.")
         
@@ -150,6 +170,7 @@ class CritiqueTools(BaseTool):
         self.logger.info(f"Revising chapter {chapter_number}, focus: {focus_areas}")
         
         content = chapter['content']
+        chapter_id = chapter['id']
         revision_notes = []
         
         # Apply each editor based on focus areas
@@ -184,12 +205,27 @@ class CritiqueTools(BaseTool):
         
         # Save revised version
         word_count = len(content.split())
+        chapter_id = chapter['id']
+        
+        # Update chapter metadata
         self.db.update_chapter(
-            project_id=project_id,
-            chapter_number=chapter_number,
-            content=content,
+            chapter_id=chapter_id,
             word_count=word_count,
             status="revised"
+        )
+        
+        # Save new content version
+        import uuid
+        version_id = f"version-{uuid.uuid4()}"
+        current_version = chapter.get('version', 1)
+        self.db.save_chapter_version(
+            version_id=version_id,
+            chapter_id=chapter_id,
+            version=current_version + 1,
+            content=content,
+            created_by="system",
+            agent_name="EditorAgents",
+            metadata={"focus_areas": focus_areas, "revision_notes": revision_notes}
         )
         
         # Update vector store

@@ -78,9 +78,9 @@ class SearchTools(BaseTool):
         if search_type in ["chapters", "both"]:
             try:
                 chapter_results = vector_store.search_chapters(
-                    project_id=project_id,
                     query=query,
-                    top_k=limit
+                    project_id=project_id,
+                    n_results=limit  # Fixed: use n_results parameter
                 )
                 
                 if chapter_results:
@@ -106,9 +106,9 @@ class SearchTools(BaseTool):
         if search_type in ["story_bible", "both"]:
             try:
                 bible_results = vector_store.search_story_bible(
-                    project_id=project_id,
                     query=query,
-                    top_k=limit
+                    project_id=project_id,
+                    n_results=limit  # Fixed: use n_results parameter
                 )
                 
                 if bible_results:
