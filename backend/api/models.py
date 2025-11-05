@@ -18,7 +18,7 @@ class ProjectUpdate(BaseModel):
     """Request model for updating a project."""
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     genre: Optional[str] = Field(None, max_length=100)
-    status: Optional[str] = Field(None, pattern="^(planning|drafting|editing|completed)$")
+    status: Optional[str] = Field(None, pattern="^(planning|drafting|editing|completed|archived)$")
     vision_document: Optional[str] = None
 
 

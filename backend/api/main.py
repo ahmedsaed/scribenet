@@ -2,10 +2,11 @@
 FastAPI main application for ScribeNet.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api.routes import projects
+from backend.api.routes import projects, chapters, agents
+from backend.api.websockets import project_websocket_endpoint, global_websocket_endpoint
 
 # Create FastAPI app
 app = FastAPI(
@@ -25,6 +26,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(projects.router)
+app.include_router(chapters.router)
+app.include_router(agents.router)
 
 
 @app.get("/")
@@ -41,6 +44,19 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+# WebSocket endpoints
+@app.websocket("/ws/projects/{project_id}")
+async def websocket_project(websocket: WebSocket, project_id: str):
+    """WebSocket endpoint for project-specific updates."""
+    await project_websocket_endpoint(websocket, project_id)
+
+
+@app.websocket("/ws/agents")
+async def websocket_agents(websocket: WebSocket):
+    """WebSocket endpoint for global agent updates."""
+    await global_websocket_endpoint(websocket)
 
 
 if __name__ == "__main__":

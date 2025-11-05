@@ -1038,128 +1038,312 @@ scribenet/
 
 **Testing**: Use `poetry run python cli.py` to test the complete workflow.
 
-### Phase 2: Core Agents (COMPLETED ✅)
+### Phase 2: Core Agents & Memory ✅ COMPLETE
 
-**Status**: All core agent types and memory systems implemented.
+**Status**: Backend foundation complete with 6 core agents and full memory system.
 
-**Completed**:
-- ✅ **Outline agent** (`backend/agents/outline.py`) - 450 lines
-  - Create detailed chapter-by-chapter outlines
-  - Generate comprehensive story bible
-  - Update story bible with new information
-  - Validate continuity against story bible
-  - Expand chapter outlines with scene-by-scene breakdowns
+**Implemented Agents** (6 types as per original plan):
+1. ✅ **Director** - Project orchestration, task delegation, planning
+2. ✅ **Outline** - Story structure, story bible, plot consistency
+3. ✅ **Writer** - Content generation (supports narrative/dialogue/description modes)
+4. ✅ **Editor** - Multi-pass editing (grammar/style/continuity passes)
+5. ✅ **Critic** - Quality evaluation, feedback generation, revision decisions
+6. ✅ **Summarizer** - Context compression, chapter summaries
 
-- ✅ **Story bible database operations** (`backend/memory/database.py`)
-  - `get_story_element()` - Fetch specific element by type and name
-  - `update_story_element()` - Update element data
-  - `delete_story_element()` - Remove element
-  - `get_story_bible()` - Retrieve complete story bible organized by type
-  - `save_full_story_bible()` - Save/replace entire story bible
+**Memory Systems** (3 types):
+1. ✅ **SQLite** - Structured data (projects, chapters, story bible, scores)
+2. ✅ **ChromaDB** - Semantic search (chapters, story bible, style examples)
+3. ✅ **Git** - Version control (chapter history, rollback, tags)
 
-- ✅ **Multiple writer agents** (`backend/agents/writer.py`) - +240 lines
-  - `NarrativeWriterAgent` - Main storytelling, action, narrative flow (temp 0.8)
-  - `DialogueWriterAgent` - Character conversations, voice consistency, subtext (temp 0.9)
-  - `DescriptionWriterAgent` - Scene-setting, worldbuilding, sensory details (temp 0.85)
+**Workflow** (LangGraph orchestration):
+- ✅ Project planning → Outline creation → Chapter writing loop
+- ✅ Write → Edit → Critique → Revise (if needed) → Next chapter
+- ✅ Context management with automatic summarization
+- ✅ Quality gates and revision limits
 
-- ✅ **Editor agents** (`backend/agents/editor.py`) - 355 lines
-  - `BaseEditor` - Common editing infrastructure with change tracking
-  - `GrammarEditor` - Spelling, grammar, punctuation (temp 0.3)
-  - `StyleEditor` - Voice consistency, rhythm, flow (temp 0.4)
-  - `ContinuityEditor` - Story consistency, plot logic (temp 0.5)
-  - JSON-structured output for all edits
+**What's Working**:
+- ✅ End-to-end book creation (tested via CLI)
+- ✅ All agents integrated and functional
+- ✅ Database persistence and version tracking
+- ✅ Git auto-commits on milestones
 
-- ✅ **Critic agent** (`backend/agents/critic.py`) - 450 lines
-  - Multi-dimensional scoring system (8 dimensions)
-  - Evaluation methods: chapter, scene, quick check, version comparison
-  - Actionable feedback generation
-  - Quality threshold checking (configurable)
-  - Revision priority assessment (critical/high/medium/low/none)
+**What Needs Improvement**:
+- ⚠️ **Workflow is too rigid** - Too many specific functions, hard to modify
+- ⚠️ **No visibility** - Can't see what's happening in real-time
+- ⚠️ **Limited API** - Only basic project CRUD endpoints
+- ⚠️ **No frontend** - CLI only, no dashboard to monitor/control
 
-- ✅ **Summarizer agent** (`backend/agents/summarizer.py`) - 370 lines
-  - Hierarchical summarization (overview + chapter details)
-  - Context window monitoring
-  - 10:1 compression ratio targeting
-  - Meta-summarization for very long books
-  - Continuity extraction
-  - Summary caching support
+**Phase 2 Verdict**: Core functionality works, but needs better structure and transparency.
 
-- ✅ **Score database operations** (`backend/memory/database.py`)
-  - `save_score()` - Save critic evaluations
-  - `get_chapter_scores()` - Get all scores for a chapter
-  - `get_latest_chapter_score()` - Get most recent score
-  - `get_project_scores()` - Get all project scores
+### Phase 3: Frontend Dashboard 🎨 PRIORITY
 
-- ✅ **Summary database operations** (`backend/memory/database.py`)
-  - `save_summary()` - Save chapter summaries with caching
-  - `get_summary()` - Retrieve cached summary for range
-  - `get_project_summaries()` - Get all project summaries
-  - `invalidate_summaries()` - Invalidate when chapters change
+**Goal**: Build a web dashboard for transparency, control, and monitoring. Stop being blind!
 
-- ✅ **ChromaDB integration** (`backend/memory/vector_store.py`) - 530 lines
-  - Four collections: chapters, story_bible, style_examples, research_notes
-  - Semantic search across all content types
-  - Character/location/theme-based retrieval
-  - Style matching for consistent prose
-  - Project-scoped filtering
+**Why This Matters**:
+- **Visibility**: See what agents are doing in real-time
+- **Control**: Start/stop workflows, edit content, adjust settings
+- **Debugging**: Watch the process, catch issues early
+- **Confidence**: Know the system is working, not guessing
 
-- ✅ **Git integration** (`backend/memory/git_manager.py`) - 570 lines
-  - Per-project git repositories
-  - Chapter versioning with auto-commits
-  - Draft management
-  - Branch creation for experimental rewrites
-  - Rollback to any commit
-  - Tag creation for milestones (draft-1.0, final-1.0)
-  - Diff viewing between versions
-  - Export functionality
+---
 
-**Phase 2 Summary**:
-- **7 new agents**: Outline, Dialogue Writer, Description Writer, Grammar Editor, Style Editor, Continuity Editor, Critic, Summarizer
-- **3 memory systems**: ChromaDB (vector), Git (version control), Enhanced SQLite (scores/summaries)
-- **Total new code**: ~3,000 lines across 6 new files + database enhancements
-- **All agents follow BaseAgent pattern** with proper system prompts and execute() methods
-- **JSON-structured outputs** for reliable parsing
-- **Python 3.10 compatible** (fixed f-string issues)
+#### 3.1: Quick Backend Setup (1 day)
 
-**Integration Status**:
-- ⏳ Agents need to be integrated into LangGraph workflows
-- ⏳ Director agent needs routing logic for multi-writer/editor selection
-- ⏳ Revision loops need to be implemented based on critic scores
-- ⏳ Context management needs summarizer integration
+Before frontend, we need minimal API endpoints:
 
-**Next Steps** (Phase 3):
-1. Update `backend/orchestration/workflows.py` to integrate all new agents
-2. Implement revision sub-workflow with quality gates
-3. Add multi-pass editing pipeline (Grammar → Style → Continuity)
-4. Integrate summarizer for context window management
-5. Add ChromaDB to context retrieval in workflows
-6. Configure Git auto-commits on milestones
-7. Test complete end-to-end workflow with all agents
-8. Begin frontend development (Next.js dashboard)
+**New Endpoints Needed**:
+```python
+# backend/api/routes/projects.py (add these)
+POST /api/projects/{id}/start          # Start writing workflow
+GET  /api/projects/{id}/status         # Get current status
+GET  /api/projects/{id}/chapters       # List chapters with status
 
-### Phase 3: Frontend
-- [ ] Next.js dashboard scaffold
-- [ ] Project list and creation flow
-- [ ] Chapter view with version history
-- [ ] Story Bible explorer
-- [ ] WebSocket integration for live updates
-- [ ] Agent activity monitor
+# backend/api/routes/chapters.py (new file)
+GET  /api/projects/{id}/chapters/{num} # Get chapter content + scores
+POST /api/projects/{id}/chapters/{num}/regenerate # Regenerate chapter
 
-### Phase 4: Polish & Optimization
-- [ ] Multi-model routing (8B for drafts, 70B for quality)
-- [ ] Advanced prompt engineering per agent
-- [ ] Quality metrics & analytics dashboard
-- [ ] Manual intervention points (human-in-the-loop)
-- [ ] Export formats (PDF, EPUB, DOCX)
-- [ ] Performance optimization & caching
+# backend/api/routes/agents.py (new file)  
+GET  /api/agents/status                # What's each agent doing?
 
-### Phase 5: Advanced Features
-- [ ] Fine-tuned models for specific voices
-- [ ] Collaborative editing (multiple human authors)
-- [ ] Style transfer from reference books
-- [ ] Chapter dependency graph visualization
-- [ ] Advanced critic with reader persona simulation
-- [ ] Plugin system for custom agents
+# backend/api/websocket.py (new file)
+WS   /ws/projects/{id}                 # Real-time updates
+```
+
+**WebSocket Events**:
+- `workflow_started`, `workflow_completed`
+- `agent_started`, `agent_completed` (with agent name + task)
+- `chapter_completed` (with content preview)
+- `quality_scored` (with scores)
+- `error` (with details)
+
+**Keep It Simple**: Don't need full CRUD for everything yet, just enough to see what's happening.
+
+---
+
+#### 3.2: Frontend Dashboard (4-5 days)
+
+**Tech Stack**:
+- Next.js 14 + TypeScript
+- Tailwind CSS (fast styling)
+- Shadcn/ui components (pre-built, beautiful)
+- WebSocket for real-time updates
+
+**Page Structure**:
+
+```
+/                              # Project list
+/projects/[id]                 # Project overview (THE MAIN VIEW)
+/projects/[id]/chapters/[num]  # Chapter detail view
+```
+
+---
+
+#### 3.3: Main Dashboard View (Priority!)
+
+**URL**: `/projects/[id]`
+
+This is where you see EVERYTHING happening:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  📖 The Last Starship (Sci-Fi)                      [⏸ Pause] │
+│  Progress: Chapter 3/20  ●●●○○○○○○○○○○○○○○○○○○○ 15%          │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  🤖 AGENT ACTIVITY (Real-time)                               │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ ✍️  Writer       Working on Chapter 3...       [2:34]  │  │
+│  │ 📊 Critic       Idle                                   │  │
+│  │ ✂️  Editor       Waiting                                │  │
+│  │ 📝 Outline      Completed                              │  │
+│  │ 🎯 Director     Monitoring                             │  │
+│  │ 📦 Summarizer   Completed                              │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  📚 CHAPTERS                                                  │
+│  ┌──────┬──────┬──────┬──────┬──────┐                        │
+│  │ Ch 1 │ Ch 2 │ Ch 3 │ Ch 4 │ Ch 5 │                        │
+│  │  ✅  │  ✅  │  🔄  │  ⏳  │  ⏳  │                        │
+│  │ 8.2⭐│ 7.8⭐│  -   │  -   │  -   │                        │
+│  └──────┴──────┴──────┴──────┴──────┘                        │
+│                                                               │
+│  📊 LATEST SCORES (Chapter 2)                                │
+│  Engagement: ████████░░ 8/10                                 │
+│  Quality:    ███████░░░ 7/10                                 │
+│  Continuity: █████████░ 9/10                                 │
+│                                                               │
+│  📜 ACTIVITY LOG                                             │
+│  [14:32] ✅ Chapter 2 completed (3,245 words)                │
+│  [14:31] 📊 Quality score: 7.8/10                            │
+│  [14:29] ✂️  Editing pass 3/3 complete                       │
+│  [14:27] ✂️  Editing pass 2/3 complete                       │
+│  [14:25] ✂️  Editing pass 1/3 complete                       │
+│  [14:20] ✍️  Chapter 2 draft complete                        │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Components Needed**:
+- `AgentStatusCard` - Show agent state (idle/working/completed)
+- `ChapterGrid` - Visual grid of chapters with status
+- `ScoreDisplay` - Progress bars for quality metrics
+- `ActivityFeed` - Real-time event log
+- `ProgressBar` - Overall book completion
+
+---
+
+#### 3.4: Chapter Detail View
+
+**URL**: `/projects/[id]/chapters/[num]`
+
+View and manage individual chapters:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Chapter 3: The Discovery                                │
+│  Status: ✅ Complete  |  Word Count: 3,245  |  Score: 8.2⭐│
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│  📄 CONTENT                    📊 QUALITY SCORES         │
+│  ┌──────────────────────┐     ┌───────────────────┐     │
+│  │                      │     │ Engagement:  8/10 │     │
+│  │ Content preview...   │     │ Quality:     7/10 │     │
+│  │                      │     │ Continuity:  9/10 │     │
+│  │ [View Full]          │     │ Originality: 7/10 │     │
+│  └──────────────────────┘     └───────────────────┘     │
+│                                                           │
+│  💬 CRITIC FEEDBACK                                      │
+│  "Good pacing overall. The dialogue in the middle        │
+│   section could be more dynamic..."                      │
+│                                                           │
+│  🔧 ACTIONS                                              │
+│  [🔄 Regenerate] [✏️ Edit Manually] [📥 Export]          │
+│                                                           │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### 3.5: Project List View
+
+**URL**: `/`
+
+Simple list of all projects:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  My Projects                              [+ New Project] │
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│  📖 The Last Starship                                    │
+│     Sci-Fi  •  Chapter 3/20  •  In Progress              │
+│     [Open]                                                │
+│                                                           │
+│  📖 Mystery at Oak Manor                                 │
+│     Mystery  •  Chapter 12/15  •  Editing                │
+│     [Open]                                                │
+│                                                           │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### 3.6: Implementation Priority
+
+**Day 1**: Backend APIs + WebSocket
+- Add minimal endpoints
+- Implement WebSocket server
+- Add event emission to workflows
+
+**Day 2-3**: Main Dashboard
+- Project overview page
+- Real-time agent status
+- Chapter grid
+- Activity feed
+
+**Day 4**: Chapter Detail View
+- Content display
+- Quality scores
+- Actions (regenerate, export)
+
+**Day 5**: Polish + Project List
+- Project list page
+- Project creation flow
+- Styling and UX improvements
+
+---
+
+#### 3.7: Key Features
+
+**Real-time Updates**:
+- WebSocket connection to backend
+- Auto-update agent status every second
+- Live activity log
+- No page refresh needed
+
+**Control Panel**:
+- Start/pause/resume workflows
+- Regenerate specific chapters
+- Adjust quality thresholds
+- Manual intervention points
+
+**Transparency**:
+- See exactly what each agent is doing
+- Read full chapter content
+- View quality scores and feedback
+- Check activity history
+
+---
+
+**Success Criteria**:
+- ✅ Can create project and start workflow from UI
+- ✅ Can see agent activity in real-time
+- ✅ Can view chapters and their quality scores
+- ✅ Can regenerate chapters from UI
+- ✅ Activity log shows all workflow events
+- ✅ No more blind CLI-only workflow!
+
+**Estimated Time**: 5-6 days total
+
+---
+
+### Phase 4: Workflow Improvements & Polish 🔧
+
+**Goal**: Fix workflow rigidity and improve backend structure (AFTER frontend works).
+
+**Why Later**: First, we need to SEE what's happening. Then we can improve it intelligently.
+
+#### Key Improvements:
+- [ ] Refactor workflows.py into cleaner, more flexible architecture
+- [ ] Use dynamic node generation instead of hardcoded functions
+- [ ] Make agent selection configurable
+- [ ] Add workflow templates (fast draft vs. high quality)
+- [ ] Let OutlineAgent handle outline creation
+- [ ] Add story bible generation
+- [ ] Export to PDF/EPUB/DOCX
+- [ ] Manual intervention points
+
+**Estimated Time**: 3-4 days
+
+---
+
+### Phase 5: Advanced Features 🚀
+
+Cool ideas for later:
+- Fine-tuned models for specific genres
+- Multi-author collaboration  
+- Advanced visualization (character graphs, plot timelines)
+- Reader persona simulation
+- Plugin system
+- Mobile app
+
+---
+
+## 📊 Current Status
+
+**✅ Phase 1-2 Complete**: Backend foundation, 6 agents, 3 memory systems, workflows
+**🎯 Phase 3 Next**: Frontend dashboard for transparency and control
+**📋 Phase 4-5**: Refinement and advanced features
 
 ---
 
@@ -1253,99 +1437,7 @@ git:
 
 ---
 
-## 🔐 Security & Privacy Considerations
-
-- **Self-hosted:** All data stays local, no external API calls
-- **Access control:** Basic auth for dashboard (optional multi-user later)
-- **Data encryption:** SQLite encryption at rest (optional)
-- **Model security:** Models run in isolated containers
-- **Backup strategy:** Automated Git backups + database dumps
-
----
-
-## 📊 Success Metrics
-
-**System Performance:**
-- Time to generate chapter (target: <5 min for 3K words)
-- Quality score improvement through revisions
-- Agent task completion rate
-
-**Output Quality:**
-- Average critic scores per chapter
-- Continuity error rate
-- Human user satisfaction ratings
-
-**User Experience:**
-- Dashboard responsiveness
-- Real-time update latency (<500ms)
-- Export success rate
-
----
-
-## 🎯 Next Steps
-
-1. **Review this plan** and identify any gaps or concerns
-2. **Set up development environment** (Python, Node.js, Ollama)
-3. **Choose model strategy** based on your hardware:
-   - **Recommended for RTX 3060 12GB:** Single model mode with Llama 3.1 8B Q8 or Qwen 3 8B Q8
-   - **Alternative:** Dual model with two 8B models if you want role separation
-   - Update `config.yaml` with your model choice
-4. **Initialize project structure** (directories, git repo)
-5. **Begin Phase 1 implementation** (database, basic API, single agent)
-6. **Iterate based on testing** and add agents incrementally
-
----
-
-## 💡 Model Usage Recommendations
-
-### For RTX 3060 12GB GPU
-
-**Option 1: Single Model (Simplest & Most Efficient)**
-```yaml
-llm:
-  mode: "single"
-  single_model: "llama-3.1-8b-q8"  # or "qwen-3-8b-q8"
-  gpu_memory_utilization: 0.85
-```
-- ✅ No model switching overhead
-- ✅ Maximum context window utilization
-- ✅ Simplest to configure and debug
-- ✅ Consistent output quality
-- ⚠️ All agents use same model
-
-**Option 2: Dual Small Models (Role Specialization)**
-```yaml
-llm:
-  mode: "dual"
-  dual_models:
-    - name: "llama-3.1-8b-q8"
-      roles: ["director", "outline", "editors", "summarizer"]
-      gpu_memory_utilization: 0.42
-    - name: "qwen-3-8b-q8"
-      roles: ["writers", "critic"]
-      gpu_memory_utilization: 0.42
-```
-- ✅ Specialized models for different tasks
-- ✅ Both fit in memory simultaneously
-- ⚠️ Reduced context window per model (~16K tokens each)
-- ⚠️ More complex configuration
-
-**Option 3: Quality-Focused Rotation (Advanced Users)**
-```yaml
-llm:
-  mode: "swap"
-  # Use larger model for critical tasks, unload/reload as needed
-```
-- ✅ Access to 14B models (Qwen 3 14B Q4, DeepSeek R1 14B)
-- ⚠️ Significant overhead from model loading (10-30 seconds per swap)
-- ⚠️ Only recommended if quality improvement justifies wait time
-
-### Recommended Starting Point
-Start with **Option 1** (single Llama 3.1 8B Q8). Test the full workflow. If you need better creative writing quality, try swapping to Qwen 3 8B Q8 or experiment with Qwen 3 14B Q4 for writer agents specifically.
-
----
-
-## 📚 Resources & References
+##  Resources & References
 
 - **LangGraph Docs:** https://langchain-ai.github.io/langgraph/
 - **Ollama Documentation:** https://github.com/ollama/ollama
@@ -1355,4 +1447,4 @@ Start with **Option 1** (single Llama 3.1 8B Q8). Test the full workflow. If you
 
 ---
 
-**Ready to build?** Let's turn this plan into reality! 🚀
+**Ready to build Phase 3!** Let's get that dashboard working so you can finally see what's happening! 🚀

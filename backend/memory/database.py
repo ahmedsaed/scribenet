@@ -206,7 +206,12 @@ class Database:
             """,
                 (project_id, title, genre, vision_document),
             )
-            return self.get_project(project_id)
+        
+        # Get the project after the connection is committed
+        project = self.get_project(project_id)
+        if not project:
+            raise ValueError(f"Failed to retrieve created project {project_id}")
+        return project
 
     def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         """Get project by ID."""
@@ -286,6 +291,10 @@ class Database:
                 (project_id,),
             )
             return [dict(row) for row in cursor.fetchall()]
+    
+    def get_project_chapters(self, project_id: str) -> List[Dict[str, Any]]:
+        """Get all chapters for a project (alias for list_chapters)."""
+        return self.list_chapters(project_id)
 
     def update_chapter(self, chapter_id: str, **kwargs) -> Optional[Dict[str, Any]]:
         """Update chapter fields."""
