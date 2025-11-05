@@ -35,6 +35,8 @@ export default function ProjectDashboard() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: 'user' | 'ai'; text: string; timestamp: string }>>([]);
 
   // WebSocket connection for real-time updates
   const { lastEvent, isConnected } = useProjectWebSocket(projectId);
@@ -199,21 +201,49 @@ export default function ProjectDashboard() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-white">
-      {/* Background gradient - centered with white edges */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-sky-50/40 to-purple-50/30" 
-             style={{ 
-               maskImage: 'radial-gradient(ellipse at center, black 20%, transparent 70%)',
-               WebkitMaskImage: 'radial-gradient(ellipse at center, black 20%, transparent 70%)'
-             }} 
-        />
-      </div>
+  const handleSendMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatMessage.trim()) return;
 
+    // Add user message
+    const userMsg = {
+      id: `user-${Date.now()}`,
+      sender: 'user' as const,
+      text: chatMessage,
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatMessage('');
+
+    // Simulate AI response (replace with actual API call later)
+    setTimeout(() => {
+      const aiMsg = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai' as const,
+        text: 'I understand your request. This feature will be implemented soon to handle workflows and agent management.',
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages((prev) => [...prev, aiMsg]);
+    }, 1000);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Header Bar */}
-      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10 relative">
-        <div className="max-w-[1800px] mx-auto px-6 py-4">
+      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+        <div className="max-w-[1920px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -244,7 +274,7 @@ export default function ProjectDashboard() {
             </div>
           </div>
           {error && (
-            <div className="mt-3 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded">
+            <div className="mt-3 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg">
               <div className="flex items-center gap-2">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -256,66 +286,11 @@ export default function ProjectDashboard() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-[1800px] mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column - Chapters (Wider) */}
-          <div className="lg:col-span-8">
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <span className="text-3xl">📚</span>
-                Chapters
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {chapters.length > 0 ? `${chapters.length} chapters in progress` : 'No chapters yet'}
-              </p>
-            </div>
-            
-            {chapters.length > 0 ? (
-              <ChapterGrid projectId={projectId} chapters={chapters} />
-            ) : (
-              <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-12 text-center">
-                <div className="text-7xl mb-6">�</div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                  Ready to Begin Your Story
-                </h3>
-                <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                  Your book project is set up and ready. Click "Start Workflow" above to begin the AI-powered writing process.
-                </p>
-                <div className="bg-gradient-to-br from-sky-50 to-purple-50 border-2 border-sky-200 rounded-xl p-6 text-left max-w-xl mx-auto">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 bg-gradient-to-r from-sky-500 to-purple-600 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-bold text-gray-900">The AI Writing Pipeline</p>
-                  </div>
-                  <div className="space-y-3">
-                    {[
-                      { icon: '🎬', name: 'Director', desc: 'Establishes creative vision & themes' },
-                      { icon: '📋', name: 'Outline', desc: 'Structures your book & chapters' },
-                      { icon: '✍️', name: 'Writer', desc: 'Drafts engaging chapter content' },
-                      { icon: '✨', name: 'Editor', desc: 'Refines and polishes the text' },
-                      { icon: '⚖️', name: 'Critic', desc: 'Provides quality feedback' },
-                      { icon: '📝', name: 'Summarizer', desc: 'Creates chapter summaries' },
-                    ].map((agent, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <span className="text-2xl">{agent.icon}</span>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{agent.name}</p>
-                          <p className="text-xs text-gray-600">{agent.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Sidebar (Narrower) */}
-          <div className="lg:col-span-4 space-y-4">
+      {/* Main Content - Three Column Layout */}
+      <div className="max-w-[1920px] mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Left Column - Sidebar (20%) */}
+          <div className="lg:col-span-1 space-y-4">
             {/* Agent Status */}
             <ExpandableSection title="Agent Status" icon="🤖" defaultExpanded={true}>
               <div className="grid grid-cols-2 gap-2">
@@ -332,20 +307,177 @@ export default function ProjectDashboard() {
 
             {/* Activity Feed */}
             <ExpandableSection title="Activity Feed" icon="📊" defaultExpanded={true}>
-              <div className="h-[400px] overflow-y-auto pr-2 -mr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+              <div className="max-h-[400px] overflow-y-auto">
                 {activities.length > 0 ? (
                   <ActivityFeed events={activities} maxHeight="none" />
                 ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="text-center py-8 text-gray-500">
+                    <svg className="w-10 h-10 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-sm text-gray-900 font-medium">No activity yet</p>
-                    <p className="text-xs mt-1 text-gray-600">Activity will appear here as you work</p>
+                    <p className="text-xs text-gray-900 font-medium">No activity yet</p>
+                    <p className="text-xs mt-1 text-gray-600">Start working to see updates</p>
                   </div>
                 )}
               </div>
             </ExpandableSection>
+          </div>
+
+          {/* Middle Column - Chapters (60%) */}
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-xl border border-gray-200 hover:border-sky-300 hover:shadow-lg transition-all duration-300">
+              <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-sky-50 to-purple-50 rounded-t-xl">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span className="text-2xl">📚</span>
+                  Chapters
+                </h2>
+                <p className="text-xs text-gray-600 mt-1">
+                  {chapters.length > 0 ? `${chapters.length} chapters in progress` : 'No chapters yet'}
+                </p>
+              </div>
+              
+              <div className="p-6">
+                {chapters.length > 0 ? (
+                  <ChapterGrid projectId={projectId} chapters={chapters} />
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-6xl mb-4">📖</div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      Ready to Begin Your Story
+                    </h3>
+                    <p className="text-gray-600 mb-6 max-w-md mx-auto text-sm">
+                      Your book project is set up and ready. Use the AI assistant to start the writing process.
+                    </p>
+                    <div className="bg-gradient-to-br from-sky-50 to-purple-50 border-2 border-sky-200 rounded-xl p-4 text-left max-w-xl mx-auto">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-7 h-7 bg-gradient-to-r from-sky-500 to-purple-600 rounded-lg flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        </div>
+                        <p className="text-xs font-bold text-gray-900">The AI Writing Pipeline</p>
+                      </div>
+                      <div className="space-y-2">
+                        {[
+                          { icon: '🎬', name: 'Director', desc: 'Establishes creative vision & themes' },
+                          { icon: '📋', name: 'Outline', desc: 'Structures your book & chapters' },
+                          { icon: '✍️', name: 'Writer', desc: 'Drafts engaging chapter content' },
+                          { icon: '✨', name: 'Editor', desc: 'Refines and polishes the text' },
+                          { icon: '⚖️', name: 'Critic', desc: 'Provides quality feedback' },
+                          { icon: '📝', name: 'Summarizer', desc: 'Creates chapter summaries' },
+                        ].map((agent, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className="text-lg">{agent.icon}</span>
+                            <div>
+                              <p className="text-xs font-semibold text-gray-900">{agent.name}</p>
+                              <p className="text-xs text-gray-600">{agent.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - AI Assistant Chat (20%) */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl border border-gray-200 hover:border-sky-300 hover:shadow-lg transition-all duration-300 h-[calc(100vh-180px)] sticky top-24 flex flex-col">
+              {/* Chat Header */}
+              <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-sky-50 to-purple-50 rounded-t-xl flex-shrink-0">
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <span className="text-xl">💬</span>
+                  AI Assistant
+                </h3>
+                <p className="text-xs text-gray-600 mt-1">
+                  Chat to manage your project
+                </p>
+              </div>
+
+              {/* Chat Messages Area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Welcome Message */}
+                <div className="flex items-start gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-sm">🤖</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="bg-gradient-to-br from-sky-50 to-purple-50 border border-sky-200 rounded-lg p-3">
+                      <p className="text-sm text-gray-900 mb-2">
+                        Hi! I'm your AI writing assistant.
+                      </p>
+                      <ul className="text-xs text-gray-700 space-y-1">
+                        <li>• Start writing workflows</li>
+                        <li>• Generate chapters</li>
+                        <li>• Review and edit content</li>
+                        <li>• Manage agent tasks</li>
+                      </ul>
+                      <p className="text-xs text-gray-700 mt-2 font-medium">
+                        How can I help you today?
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Just now</p>
+                  </div>
+                </div>
+
+                {/* Chat Messages */}
+                {chatMessages.map((msg) => (
+                  <div key={msg.id} className={`flex items-start gap-2 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+                    {msg.sender === 'ai' ? (
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm">🤖</span>
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                        <span className="text-gray-600 text-sm">👤</span>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className={`rounded-lg p-3 ${
+                        msg.sender === 'user' 
+                          ? 'bg-gradient-to-r from-sky-500 to-purple-600 text-white' 
+                          : 'bg-gray-50 border border-gray-200 text-gray-900'
+                      }`}>
+                        <p className="text-sm">{msg.text}</p>
+                      </div>
+                      <p className={`text-xs text-gray-400 mt-1 ${msg.sender === 'user' ? 'text-right' : ''}`}>
+                        {formatTime(msg.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chat Input Area */}
+              <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl flex-shrink-0">
+                <form onSubmit={handleSendMessage}>
+                  <div className="flex items-center gap-2">
+                    <textarea
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Type your message..."
+                      rows={2}
+                      className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3 py-2 bg-gradient-to-r from-sky-500 to-purple-600 text-white rounded-lg hover:from-sky-600 hover:to-purple-700 transition-all flex items-center justify-center flex-shrink-0 w-[52px] h-[52px]"
+                      title="Send message"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Press Enter to send, Shift+Enter for new line
+                  </p>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       </div>

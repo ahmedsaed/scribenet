@@ -17,12 +17,12 @@ interface ActivityFeedProps {
 }
 
 const eventColors = {
-  agent_started: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-900' },
-  agent_completed: { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-900' },
-  chapter_completed: { bg: 'bg-purple-50', border: 'border-purple-300', text: 'text-purple-900' },
-  quality_scored: { bg: 'bg-yellow-50', border: 'border-yellow-300', text: 'text-yellow-900' },
-  error: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-900' },
-  info: { bg: 'bg-gray-50', border: 'border-gray-300', text: 'text-gray-900' },
+  agent_started: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-900', icon: 'bg-blue-500' },
+  agent_completed: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-900', icon: 'bg-green-500' },
+  chapter_completed: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-900', icon: 'bg-purple-500' },
+  quality_scored: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-900', icon: 'bg-yellow-500' },
+  error: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-900', icon: 'bg-red-500' },
+  info: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-900', icon: 'bg-gray-500' },
 };
 
 const eventIcons = {
@@ -67,33 +67,35 @@ export default function ActivityFeed({ events, maxHeight = '600px' }: ActivityFe
           return (
             <div
               key={event.id}
-              className={`${colors.bg} ${colors.border} ${colors.text} border-l-4 rounded-lg p-3 transition-all`}
+              className={`${colors.bg} ${colors.border} border rounded-lg p-3 transition-all hover:shadow-md`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-2 flex-1">
-                  <span className="text-lg">{icon}</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{event.message}</p>
-                    {event.agentType && (
-                      <span className="inline-block mt-1 text-xs bg-white/70 px-2 py-0.5 rounded capitalize font-semibold">
-                        {event.agentType}
-                      </span>
-                    )}
-                    {event.metadata && Object.keys(event.metadata).length > 0 && (
-                      <div className="mt-2 text-xs bg-white/70 p-2 rounded font-mono">
-                        {Object.entries(event.metadata).map(([key, value]) => (
-                          <div key={key} className="flex justify-between">
-                            <span className="font-semibold">{key}:</span>
-                            <span>{JSON.stringify(value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              <div className="flex items-start gap-2">
+                <div className={`${colors.icon} w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-white text-xs`}>
+                  {icon}
                 </div>
-                <span className="text-xs text-gray-600 font-mono ml-2 flex-shrink-0">
-                  {formatTime(event.timestamp)}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`text-xs font-medium ${colors.text} flex-1 break-words`}>{event.message}</p>
+                    <span className="text-xs text-gray-600 font-mono flex-shrink-0 whitespace-nowrap">
+                      {formatTime(event.timestamp)}
+                    </span>
+                  </div>
+                  {event.agentType && (
+                    <span className={`inline-block mt-1.5 text-xs bg-white px-2 py-0.5 rounded-md capitalize font-semibold ${colors.text}`}>
+                      {event.agentType}
+                    </span>
+                  )}
+                  {event.metadata && Object.keys(event.metadata).length > 0 && (
+                    <div className="mt-2 text-xs bg-white p-2 rounded-md font-mono overflow-x-auto text-gray-800">
+                      {Object.entries(event.metadata).map(([key, value]) => (
+                        <div key={key} className="flex gap-2 break-all">
+                          <span className="font-semibold flex-shrink-0 text-gray-900">{key}:</span>
+                          <span className="break-all text-gray-700">{JSON.stringify(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
