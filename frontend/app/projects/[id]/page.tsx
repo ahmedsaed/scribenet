@@ -7,6 +7,7 @@ import ChapterGrid, { Chapter } from '@/components/ChapterGrid';
 import ActivityFeed, { ActivityEvent } from '@/components/ActivityFeed';
 import ScoreDisplay, { QualityScore } from '@/components/ScoreDisplay';
 import ExpandableSection from '@/components/ExpandableSection';
+import ChatMessageBubble from '@/components/ChatMessageBubble';
 import { ApiClient } from '@/lib/api';
 import { useProjectWebSocket } from '@/lib/websocket';
 
@@ -455,29 +456,12 @@ export default function ProjectDashboard() {
 
                 {/* Chat Messages */}
                 {chatMessages.map((msg) => (
-                  <div key={msg.id} className={`flex items-start gap-2 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-                    {msg.sender === 'ai' ? (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-sm">🎬</span>
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
-                        <span className="text-gray-600 text-sm">👤</span>
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <div className={`rounded-lg p-3 ${
-                        msg.sender === 'user' 
-                          ? 'bg-gradient-to-r from-sky-500 to-purple-600 text-white' 
-                          : 'bg-gray-50 border border-gray-200 text-gray-900'
-                      }`}>
-                        <p className="text-sm">{msg.text}</p>
-                      </div>
-                      <p className={`text-xs text-gray-400 mt-1 ${msg.sender === 'user' ? 'text-right' : ''}`}>
-                        {formatTime(msg.timestamp)}
-                      </p>
-                    </div>
-                  </div>
+                  <ChatMessageBubble
+                    key={msg.id}
+                    message={msg.text}
+                    sender={msg.sender}
+                    timestamp={msg.timestamp}
+                  />
                 ))}
               </div>
 
