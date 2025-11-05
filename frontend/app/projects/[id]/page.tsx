@@ -37,6 +37,7 @@ export default function ProjectDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: 'user' | 'ai'; text: string; timestamp: string }>>([]);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // WebSocket connection for real-time updates
   const { lastEvent, isConnected } = useProjectWebSocket(projectId);
@@ -201,30 +202,60 @@ export default function ProjectDashboard() {
     }
   };
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!chatMessage.trim()) return;
+    if (!chatMessage.trim() || isSendingMessage) return;
+
+    const userMessageText = chatMessage.trim();
+    setChatMessage('');
+    setIsSendingMessage(true);
 
     // Add user message
     const userMsg = {
       id: `user-${Date.now()}`,
       sender: 'user' as const,
-      text: chatMessage,
+      text: userMessageText,
       timestamp: new Date().toISOString(),
     };
     setChatMessages((prev) => [...prev, userMsg]);
-    setChatMessage('');
 
-    // Simulate AI response (replace with actual API call later)
-    setTimeout(() => {
+    try {
+      // Convert chat messages to API format
+      const conversationHistory = chatMessages.map(msg => ({
+        role: (msg.sender === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+        content: msg.text,
+        timestamp: msg.timestamp,
+      }));
+
+      // Call the API
+      const response = await api.sendChatMessage(
+        projectId,
+        userMessageText,
+        conversationHistory
+      );
+
+      // Add AI response
       const aiMsg = {
         id: `ai-${Date.now()}`,
         sender: 'ai' as const,
-        text: 'I understand your request. This feature will be implemented soon to handle workflows and agent management.',
-        timestamp: new Date().toISOString(),
+        text: response.message,
+        timestamp: response.timestamp,
       };
       setChatMessages((prev) => [...prev, aiMsg]);
-    }, 1000);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      
+      // Add error message
+      const errorMsg = {
+        id: `ai-error-${Date.now()}`,
+        sender: 'ai' as const,
+        text: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -382,17 +413,17 @@ export default function ProjectDashboard() {
             </div>
           </div>
 
-          {/* Right Column - AI Assistant Chat (20%) */}
+          {/* Right Column - Director Chat (20%) */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl border border-gray-200 hover:border-sky-300 hover:shadow-lg transition-all duration-300 h-[calc(100vh-180px)] sticky top-24 flex flex-col">
               {/* Chat Header */}
               <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-sky-50 to-purple-50 rounded-t-xl flex-shrink-0">
                 <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                  <span className="text-xl">💬</span>
-                  AI Assistant
+                  <span className="text-xl">🎬</span>
+                  Director
                 </h3>
                 <p className="text-xs text-gray-600 mt-1">
-                  Chat to manage your project
+                  Your creative project director
                 </p>
               </div>
 
@@ -401,21 +432,21 @@ export default function ProjectDashboard() {
                 {/* Welcome Message */}
                 <div className="flex items-start gap-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-sm">🤖</span>
+                    <span className="text-white text-sm">🎬</span>
                   </div>
                   <div className="flex-1">
                     <div className="bg-gradient-to-br from-sky-50 to-purple-50 border border-sky-200 rounded-lg p-3">
                       <p className="text-sm text-gray-900 mb-2">
-                        Hi! I'm your AI writing assistant.
+                        Hello! I'm the Director, overseeing your book project.
                       </p>
                       <ul className="text-xs text-gray-700 space-y-1">
-                        <li>• Start writing workflows</li>
-                        <li>• Generate chapters</li>
-                        <li>• Review and edit content</li>
-                        <li>• Manage agent tasks</li>
+                        <li>• Guide the creative vision</li>
+                        <li>• Coordinate the writing team</li>
+                        <li>• Manage workflows and agents</li>
+                        <li>• Monitor project progress</li>
                       </ul>
                       <p className="text-xs text-gray-700 mt-2 font-medium">
-                        How can I help you today?
+                        What would you like to work on?
                       </p>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Just now</p>
@@ -427,7 +458,7 @@ export default function ProjectDashboard() {
                   <div key={msg.id} className={`flex items-start gap-2 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                     {msg.sender === 'ai' ? (
                       <div className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-sm">🤖</span>
+                        <span className="text-white text-sm">🎬</span>
                       </div>
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
@@ -460,16 +491,25 @@ export default function ProjectDashboard() {
                       onKeyDown={handleKeyDown}
                       placeholder="Type your message..."
                       rows={2}
-                      className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none"
+                      disabled={isSendingMessage}
+                      className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <button
                       type="submit"
-                      className="px-3 py-2 bg-gradient-to-r from-sky-500 to-purple-600 text-white rounded-lg hover:from-sky-600 hover:to-purple-700 transition-all flex items-center justify-center flex-shrink-0 w-[52px] h-[52px]"
+                      disabled={isSendingMessage || !chatMessage.trim()}
+                      className="px-3 py-2 bg-gradient-to-r from-sky-500 to-purple-600 text-white rounded-lg hover:from-sky-600 hover:to-purple-700 transition-all flex items-center justify-center flex-shrink-0 w-[52px] h-[52px] disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Send message"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                      </svg>
+                      {isSendingMessage ? (
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                      )}
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">

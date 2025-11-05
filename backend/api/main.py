@@ -5,7 +5,7 @@ FastAPI main application for ScribeNet.
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api.routes import projects, chapters, agents
+from backend.api.routes import projects, chapters, agents, chat
 from backend.api.websockets import project_websocket_endpoint, global_websocket_endpoint
 
 # Create FastAPI app
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(projects.router)
 app.include_router(chapters.router)
 app.include_router(agents.router)
+app.include_router(chat.router)
 
 
 @app.get("/")

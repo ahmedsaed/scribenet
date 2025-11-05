@@ -1,41 +1,74 @@
 """
 Director agent for ScribeNet.
-Coordinates the overall book writing process.
+Coordinates the overall book writing process and provides interactive guidance.
 """
 
-import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 from backend.agents.base import BaseAgent
 
 
 class DirectorAgent(BaseAgent):
     """
     Director agent that orchestrates the book writing process.
-    Responsible for planning, task assignment, and quality control.
+    Responsible for planning, task assignment, quality control, and interactive guidance.
     """
 
     def __init__(self):
         super().__init__(agent_type="director")
 
-    def build_system_prompt(self) -> str:
-        """Build the system prompt for the director agent."""
-        return """You are a Director Agent coordinating a book writing project.
+    def build_system_prompt(self, project_context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Build the system prompt for the director agent.
+        
+        Args:
+            project_context: Optional project details to include in context
+            
+        Returns:
+            System prompt string
+        """
+        base_prompt = """You are the Director, an expert creative director and project coordinator for book writing projects.
 
-Your responsibilities:
-1. Parse user requirements (genre, theme, length, style)
-2. Create a structured project plan with chapter outlines
-3. Break down the work into manageable tasks
-4. Coordinate between different specialist agents
-5. Ensure narrative consistency and quality
+Your role is to guide the author through the entire book creation process with wisdom, creativity, and strategic thinking.
 
-You work with:
-- Outline Agent: Creates detailed story structure
-- Writer Agents: Generate prose for chapters
-- Editor Agents: Refine and polish content
-- Critic Agent: Evaluate quality and provide feedback
+Core Responsibilities:
+1. **Creative Vision**: Help establish and maintain the creative direction of the book
+2. **Project Planning**: Break down the book into manageable chapters and milestones
+3. **Team Coordination**: Coordinate specialist agents (Outline, Writer, Editor, Critic, Summarizer)
+4. **Quality Oversight**: Ensure narrative consistency, quality, and coherence
+5. **Interactive Guidance**: Answer questions, provide suggestions, and adapt to author's needs
 
-Be strategic, organized, and focused on producing high-quality book content.
-Always output structured JSON for task assignments."""
+Communication Style:
+- Be conversational, helpful, and encouraging
+- Provide specific, actionable guidance
+- Ask clarifying questions when needed
+- Offer creative suggestions while respecting the author's vision
+- Be honest about challenges and opportunities
+
+Available Actions (mention these when relevant):
+- Start outline creation for the book structure
+- Begin writing specific chapters
+- Review and provide feedback on content
+- Generate chapter summaries
+- Coordinate revisions and improvements"""
+
+        if project_context:
+            context_info = f"""
+
+CURRENT PROJECT CONTEXT:
+- Title: {project_context.get('title', 'Untitled')}
+- Genre: {project_context.get('genre', 'Not specified')}
+- Status: {project_context.get('status', 'planning')}"""
+            
+            if project_context.get('vision_document'):
+                context_info += f"\n- Vision: {project_context.get('vision_document')[:500]}..."
+                
+            base_prompt += context_info
+            
+        base_prompt += """
+
+Remember: You're here to empower the author and bring their creative vision to life through structured, collaborative work."""
+        
+        return base_prompt
 
     async def execute(self, task_input: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -204,3 +237,44 @@ Be specific and actionable.""",
             "target_word_count": target_word_count,
             "assigned_to": "narrative_writer",
         }
+
+    async def chat_with_context(
+        self,
+        project: Dict[str, Any],
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
+        """
+        Chat with the director agent in the context of a specific project.
+        
+        Args:
+            project: Project details dictionary
+            user_message: The user's message
+            conversation_history: Previous messages in the conversation
+            
+        Returns:
+            Director's response
+        """
+        # Build messages array with project context
+        messages = [
+            {"role": "system", "content": self.build_system_prompt(project)}
+        ]
+        
+        # Add conversation history if provided
+        if conversation_history:
+            for msg in conversation_history:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+        
+        # Add the current user message
+        messages.append({
+            "role": "user",
+            "content": user_message
+        })
+        
+        # Get response from the LLM
+        response = await self.chat(messages, max_tokens=1000)
+        
+        return response
