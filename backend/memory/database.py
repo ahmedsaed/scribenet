@@ -161,6 +161,18 @@ class Database:
                 )
             """)
 
+            # Chat messages table (for Director conversations)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    sender TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+                )
+            """)
+
             # Create indexes for common queries
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id)"
@@ -173,6 +185,9 @@ class Database:
             )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_scores_chapter ON scores(chapter_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_chat_messages_project ON chat_messages(project_id)"
             )
 
             # Ensure provenance columns exist on chapter_versions for agent tracking
@@ -822,4 +837,52 @@ class Database:
             """,
                 (project_id, chapter_number, chapter_number),
             )
+
+    # ==================== Chat Message Operations ====================
+
+    def save_chat_message(
+        self,
+        message_id: str,
+        project_id: str,
+        sender: str,  # 'user' or 'assistant'
+        message: str,
+    ) -> Dict[str, Any]:
+        """Save a chat message to the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO chat_messages (id, project_id, sender, message)
+                VALUES (?, ?, ?, ?)
+            """,
+                (message_id, project_id, sender, message),
+            )
+            cursor.execute("SELECT * FROM chat_messages WHERE id = ?", (message_id,))
+            row = cursor.fetchone()
+            return dict(row)
+
+    def get_chat_messages(self, project_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get chat messages for a project, ordered by creation time."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT * FROM chat_messages
+                WHERE project_id = ?
+                ORDER BY created_at ASC
+                LIMIT ?
+            """,
+                (project_id, limit),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def clear_chat_messages(self, project_id: str) -> None:
+        """Clear all chat messages for a project."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM chat_messages WHERE project_id = ?",
+                (project_id,),
+            )
+
 

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
+import uuid
 
 from backend.agents.director import DirectorAgent
 from backend.memory.database import Database
@@ -33,6 +34,14 @@ class ChatResponse(BaseModel):
     message: str
     timestamp: str
     conversation_id: Optional[str] = None
+
+
+class StoredChatMessage(BaseModel):
+    """Stored chat message from database."""
+    id: str
+    sender: str  # 'user' or 'assistant'
+    message: str
+    created_at: str
 
 
 def get_db() -> Database:
@@ -84,11 +93,29 @@ async def chat_with_director(project_id: str, request: ChatRequest):
     director = DirectorAgent()
     
     try:
+        # Save user message to database
+        user_msg_id = str(uuid.uuid4())
+        db.save_chat_message(
+            message_id=user_msg_id,
+            project_id=project_id,
+            sender="user",
+            message=request.message,
+        )
+        
         # Get the response from Director
         response = await director.chat_with_context(
             project=project,
             user_message=request.message,
             conversation_history=request.conversation_history,
+        )
+        
+        # Save assistant response to database
+        assistant_msg_id = str(uuid.uuid4())
+        db.save_chat_message(
+            message_id=assistant_msg_id,
+            project_id=project_id,
+            sender="assistant",
+            message=response,
         )
         
         return ChatResponse(
@@ -102,3 +129,53 @@ async def chat_with_director(project_id: str, request: ChatRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get response from Director: {str(e)}",
         )
+
+
+@router.get(
+    "/{project_id}/chat/history",
+    response_model=List[StoredChatMessage],
+    status_code=status.HTTP_200_OK,
+)
+async def get_chat_history(project_id: str, limit: int = 100):
+    """
+    Get chat history for a project.
+    
+    Args:
+        project_id: Project UUID
+        limit: Maximum number of messages to return (default: 100)
+        
+    Returns:
+        List of chat messages ordered by creation time
+    """
+    db = get_db()
+    
+    try:
+        # Verify project exists
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project {project_id} not found",
+            )
+        
+        # Get chat messages
+        messages = db.get_chat_messages(project_id, limit=limit)
+        
+        return [
+            StoredChatMessage(
+                id=msg["id"],
+                sender=msg["sender"],
+                message=msg["message"],
+                created_at=msg["created_at"],
+            )
+            for msg in messages
+        ]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get chat history: {str(e)}",
+        )
+

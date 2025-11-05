@@ -83,6 +83,26 @@ export default function ProjectDashboard() {
     loadProject();
   }, [projectId]);
 
+  // Load chat history
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      try {
+        const history = await api.getChatHistory(projectId);
+        const mappedMessages = history.map(msg => ({
+          id: msg.id,
+          sender: msg.sender === 'user' ? 'user' as const : 'ai' as const,
+          text: msg.message,
+          timestamp: msg.created_at,
+        }));
+        setChatMessages(mappedMessages);
+      } catch (err) {
+        console.warn('Failed to load chat history:', err);
+      }
+    };
+
+    loadChatHistory();
+  }, [projectId]);
+
   // Handle WebSocket events
   useEffect(() => {
     if (!lastEvent) return;
