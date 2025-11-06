@@ -1126,7 +1126,6 @@ scribenet/
 - `backend/agents/director.py` - Director agent with planning and task assignment
 - `backend/agents/writer.py` - Narrative writer agent
 - `backend/orchestration/workflows.py` + `backend/orchestration/state.py` - LangGraph workflows
-- `cli.py` - Command-line testing interface
 
 ---
 

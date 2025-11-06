@@ -59,57 +59,7 @@ ollama serve
 
 Wait for "Ollama is running" message.
 
-### 5. Test the System
-
-```bash
-# Run the CLI test
-poetry run python cli.py
-```
-
-This will:
-1. ✅ Check configuration
-2. ✅ Verify Ollama connection
-3. ✅ Create a test project ("The Last Starship")
-4. ✅ Generate vision document and outline
-5. ✅ Write Chapter 1 (about 1500 words)
-6. ✅ Save everything to database
-
-**Expected time**: 2-5 minutes depending on your GPU
-
-## 📊 What You'll See
-
-```
-🚀 ScribeNet CLI - Project Creation Test
-==============================================================
-
-📚 Creating project:
-   Title: The Last Starship
-   Genre: Science Fiction
-   Chapters: 5
-   
-🔄 Running project workflow...
-
-📋 Planning project: The Last Starship
-✅ Project plan created
-
-📝 Creating outline for 5 chapters
-✅ Outline created
-
-📊 RESULTS
-==============================================================
-
-✅ Phase: writing
-
-📄 Vision Document:
-------------------------------------------------------------
-[Generated vision document will appear here]
-
-📝 Outline:
-------------------------------------------------------------
-[Generated chapter outline will appear here]
-
-✅ Project created and saved to database!
-```
+### 5. Run the backend
 
 ## 🎨 Using the API
 
@@ -194,13 +144,6 @@ ollama pull llama3.1:8b
 - Ensure GPU is being used (check with `nvidia-smi`)
 - Reduce `target_word_count` in test
 - Increase temperature for faster but more varied output
-
-## 🎯 Next Steps
-
-1. **Customize your project**: Edit the test parameters in `cli.py`
-2. **Write more chapters**: Modify the CLI to iterate through chapters
-3. **Explore the API**: Use the FastAPI docs at `/docs`
-4. **Move to Phase 2**: Add editor agents, critic, and more!
 
 ## 📚 Additional Resources
 

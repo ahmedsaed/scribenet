@@ -20,7 +20,6 @@ ScribeNet uses multiple AI agents working together to write books:
 - [x] Director agent with simple task assignment
 - [x] Single Writer agent (narrative only)
 - [x] Simple LangGraph workflow
-- [x] CLI interface for testing
 
 ## 🚀 Quick Start
 
@@ -58,21 +57,7 @@ ollama serve
 
 ### Usage
 
-#### Option 1: CLI (Testing)
-
-Run the test CLI to create a project and write a chapter:
-
-```bash
-poetry run python cli.py
-```
-
-This will:
-1. Create a test science fiction project
-2. Generate a vision document and outline
-3. Write the first chapter
-4. Save everything to the database
-
-#### Option 2: API Server
+#### Option 1: API Server
 
 Start the FastAPI server:
 
@@ -105,7 +90,6 @@ scribenet/
 │   └── utils/           # Configuration and utilities
 ├── data/                # SQLite database (created on first run)
 ├── config.yaml          # Configuration file
-├── cli.py               # CLI testing interface
 └── TECHNICAL_PLAN.md    # Full technical documentation
 ```
 
