@@ -23,6 +23,7 @@ class OllamaResponse:
     load_duration: Optional[int] = None
     prompt_eval_count: Optional[int] = None
     eval_count: Optional[int] = None
+    tool_calls: Optional[List[Dict[str, Any]]] = None
 
 
 class OllamaClient:
@@ -299,6 +300,7 @@ class OllamaClient:
         top_p: float = 0.9,
         top_k: int = 40,
         stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None,
         **kwargs
     ) -> OllamaResponse:
         """
@@ -313,6 +315,7 @@ class OllamaClient:
             top_p: Nucleus sampling threshold
             top_k: Top-k sampling parameter
             stream: Whether to stream response (not implemented yet)
+            tools: Optional list of tools for function calling
             **kwargs: Additional Ollama parameters
         
         Returns:
@@ -330,6 +333,10 @@ class OllamaClient:
                 "top_k": top_k,
             }
         }
+        
+        # Add tools if provided
+        if tools:
+            payload["tools"] = tools
         
         if max_tokens:
             payload["options"]["num_predict"] = max_tokens
@@ -352,6 +359,7 @@ class OllamaClient:
                         # Extract message content
                         message = data.get("message", {})
                         content = message.get("content", "")
+                        tool_calls = message.get("tool_calls")
 
                         return OllamaResponse(
                             text=content,
@@ -361,6 +369,7 @@ class OllamaClient:
                             load_duration=data.get("load_duration"),
                             prompt_eval_count=data.get("prompt_eval_count"),
                             eval_count=data.get("eval_count"),
+                            tool_calls=tool_calls,
                         )
                     else:
                         error_text = await response.text()

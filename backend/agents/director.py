@@ -1,20 +1,30 @@
 """
 Director agent for ScribeNet.
 Coordinates the overall book writing process and provides interactive guidance.
+Integrated with MCP for tool calling capabilities.
 """
 
+import json
+import logging
 from typing import Dict, Any, Optional, List
 from backend.agents.base import BaseAgent
+from backend.mcp.client_manager import MCPClientManager
+
+logger = logging.getLogger(__name__)
 
 
 class DirectorAgent(BaseAgent):
     """
     Director agent that orchestrates the book writing process.
     Responsible for planning, task assignment, quality control, and interactive guidance.
+    Enhanced with MCP tool calling capabilities.
     """
 
     def __init__(self):
         super().__init__(agent_type="director")
+        self.mcp_manager: Optional[MCPClientManager] = None
+        self.tools_registry: List[Dict[str, Any]] = []
+        self._mcp_initialized = False
 
     def build_system_prompt(self, project_context: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -69,6 +79,77 @@ CURRENT PROJECT CONTEXT:
 Remember: You're here to empower the author and bring their creative vision to life through structured, collaborative work."""
         
         return base_prompt
+
+    async def initialize_mcp(self, servers_config: List[Dict[str, Any]]) -> None:
+        """
+        Initialize MCP connections to configured servers.
+        
+        Args:
+            servers_config: List of server configuration dicts
+        """
+        if self._mcp_initialized:
+            logger.info("MCP already initialized")
+            return
+        
+        try:
+            self.mcp_manager = MCPClientManager()
+            
+            # Connect to each configured server
+            for server_config in servers_config:
+                server_name = server_config.get("name")
+                if not server_name:
+                    logger.warning(f"Server config missing 'name': {server_config}")
+                    continue
+                
+                try:
+                    await self.mcp_manager.connect_server(server_name, server_config)
+                    logger.info(f"Connected to MCP server: {server_name}")
+                except Exception as e:
+                    logger.error(f"Failed to connect to server '{server_name}': {e}")
+            
+            # Cache available tools
+            self.tools_registry = await self.mcp_manager.list_all_tools()
+            logger.info(f"Discovered {len(self.tools_registry)} total tools from {len(self.mcp_manager.sessions)} servers")
+            
+            self._mcp_initialized = True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP: {e}")
+            raise
+    
+    def get_tools_by_server(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get tools organized by server.
+        
+        Returns:
+            Dict mapping server name to list of tools
+        """
+        if not self.mcp_manager:
+            return {}
+        
+        tools_by_server = {}
+        for tool in self.tools_registry:
+            server = tool.get("server", "unknown")
+            if server not in tools_by_server:
+                tools_by_server[server] = []
+            tools_by_server[server].append(tool)
+        
+        return tools_by_server
+    
+    def filter_tools(self, enabled_tools: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Filter tools based on enabled list.
+        
+        Args:
+            enabled_tools: List of tool names to enable (None = all enabled)
+        
+        Returns:
+            Filtered list of tools
+        """
+        if not enabled_tools:
+            return self.tools_registry
+        
+        return [tool for tool in self.tools_registry if tool["name"] in enabled_tools]
 
     async def execute(self, task_input: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -238,19 +319,81 @@ Be specific and actionable.""",
             "assigned_to": "narrative_writer",
         }
 
+    async def _handle_tool_calls(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]]
+    ) -> None:
+        """
+        Handle tool calls from the LLM.
+        
+        Args:
+            tool_calls: List of tool call requests from LLM
+            messages: Conversation messages to append tool results to
+        """
+        if not self.mcp_manager:
+            logger.error("MCP manager not initialized, cannot execute tools")
+            return
+        
+        for tool_call in tool_calls:
+            tool_name = tool_call.get("function", {}).get("name")
+            tool_id = tool_call.get("id")
+            
+            try:
+                # Parse arguments
+                arguments_str = tool_call.get("function", {}).get("arguments", "{}")
+                arguments = json.loads(arguments_str) if isinstance(arguments_str, str) else arguments_str
+                
+                logger.info(f"Executing tool: {tool_name} with args: {arguments}")
+                
+                # Execute the tool
+                result = await self.mcp_manager.call_tool(tool_name, arguments)
+                
+                # Add tool result to messages
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_id,
+                    "name": tool_name,
+                    "content": str(result)
+                })
+                
+                logger.info(f"Tool {tool_name} executed successfully")
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse tool arguments for {tool_name}: {e}")
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_id,
+                    "name": tool_name,
+                    "content": f"Error: Failed to parse arguments - {str(e)}"
+                })
+            except Exception as e:
+                logger.error(f"Tool execution failed for {tool_name}: {e}")
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_id,
+                    "name": tool_name,
+                    "content": f"Error: {str(e)}"
+                })
+
     async def chat_with_context(
         self,
         project: Dict[str, Any],
         user_message: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        enabled_tools: Optional[List[str]] = None,
+        max_tool_iterations: int = 5
     ) -> str:
         """
         Chat with the director agent in the context of a specific project.
+        Supports MCP tool calling if initialized.
         
         Args:
             project: Project details dictionary
             user_message: The user's message
             conversation_history: Previous messages in the conversation
+            enabled_tools: List of tool names to enable (None = all enabled)
+            max_tool_iterations: Maximum number of tool call iterations
             
         Returns:
             Director's response
@@ -263,10 +406,26 @@ Be specific and actionable.""",
         # Add conversation history if provided
         if conversation_history:
             for msg in conversation_history:
-                messages.append({
-                    "role": msg.get("role", "user"),
-                    "content": msg.get("content", "")
-                })
+                # Handle both dict and Pydantic model
+                if hasattr(msg, 'model_dump'):
+                    # Pydantic model
+                    msg_dict = msg.model_dump()
+                    messages.append({
+                        "role": msg_dict.get("role", "user"),
+                        "content": msg_dict.get("content", "")
+                    })
+                elif isinstance(msg, dict):
+                    # Plain dict
+                    messages.append({
+                        "role": msg.get("role", "user"),
+                        "content": msg.get("content", "")
+                    })
+                else:
+                    # Try to access attributes directly
+                    messages.append({
+                        "role": getattr(msg, "role", "user"),
+                        "content": getattr(msg, "content", "")
+                    })
         
         # Add the current user message
         messages.append({
@@ -274,7 +433,57 @@ Be specific and actionable.""",
             "content": user_message
         })
         
-        # Get response from the LLM
-        response = await self.chat(messages, max_tokens=1000)
+        # Prepare tools for LLM if MCP is initialized
+        tools = None
+        if self._mcp_initialized and self.tools_registry:
+            filtered_tools = self.filter_tools(enabled_tools)
+            if filtered_tools:
+                # Convert MCP tools to OpenAI function format
+                tools = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool["name"],
+                            "description": tool.get("description", ""),
+                            "parameters": tool.get("inputSchema", {})
+                        }
+                    }
+                    for tool in filtered_tools
+                ]
+                logger.info(f"Providing {len(tools)} tools to LLM")
         
-        return response
+        # Iterative loop for tool calling
+        iterations = 0
+        while iterations < max_tool_iterations:
+            iterations += 1
+            
+            # Get response from the LLM
+            response = await self.chat(messages, max_tokens=1000, tools=tools)
+            
+            # Check if response contains tool calls
+            if isinstance(response, dict) and response.get("tool_calls"):
+                tool_calls = response["tool_calls"]
+                logger.info(f"LLM requested {len(tool_calls)} tool calls")
+                
+                # Add assistant message with tool calls
+                messages.append({
+                    "role": "assistant",
+                    "content": response.get("content"),
+                    "tool_calls": tool_calls
+                })
+                
+                # Execute tools and add results
+                await self._handle_tool_calls(tool_calls, messages)
+                
+                # Continue loop to get final response
+                continue
+            
+            # No tool calls, we have the final response
+            if isinstance(response, dict):
+                return response.get("content", str(response))
+            
+            return response
+        
+        # Max iterations reached
+        logger.warning(f"Max tool iterations ({max_tool_iterations}) reached")
+        return "I apologize, but I've reached the maximum number of tool calls. Please try rephrasing your request."

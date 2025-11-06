@@ -8,36 +8,36 @@ project:
 # Agent configuration
 agents:
   director:
-    model: "llama3.1:8b"
+    model: "qwen3:8b-q8_0"
     temperature: 0.7
   outline:
-    model: "llama3.1:8b"
+    model: "qwen3:8b-q8_0"
     temperature: 0.6
   writers:
     narrative:
-      model: "llama3.1:8b"
+      model: "qwen3:8b-q8_0"
       temperature: 0.8
     dialogue:
-      model: "llama3.1:8b"
+      model: "qwen3:8b-q8_0"
       temperature: 0.9
     description:
-      model: "llama3.1:8b"
+      model: "qwen3:8b-q8_0"
       temperature: 0.85
   editors:
     grammar:
-      model: "llama3.1:8b"
+      model: "qwen3:8b-q8_0"
       temperature: 0.3
     style:
-      model: "llama3.1:8b"
+      model: "qwen3:8b-q8_0"
       temperature: 0.4
     continuity:
-      model: "llama3.1:8b"
+      model: "qwen3:8b-q8_0"
       temperature: 0.5
   critic:
-    model: "llama3.1:8b"
+    model: "qwen3:8b-q8_0"
     temperature: 0.5
   summarizer:
-    model: "llama3.1:8b"
+    model: "qwen3:8b-q8_0"
     temperature: 0.4
     compression_ratio: 10
 
@@ -51,7 +51,7 @@ memory:
 # LLM configuration
 llm:
   mode: "single"  # single mode (best for 12GB GPU)
-  single_model: "llama3.1:8b"
+  single_model: "qwen3:8b-q8_0"
   ollama_url: "http://localhost:11434"
   max_tokens: 8192
   timeout: 120

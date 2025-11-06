@@ -98,7 +98,8 @@ class BaseAgent(ABC):
         messages: list,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
-    ) -> str:
+        tools: Optional[list] = None,
+    ):
         """
         Generate chat completion using the configured model.
         
@@ -106,9 +107,10 @@ class BaseAgent(ABC):
             messages: List of message dicts with 'role' and 'content'
             max_tokens: Maximum tokens (uses config default if None)
             temperature: Sampling temperature (uses agent config if None)
+            tools: Optional list of tools/functions for tool calling
             
         Returns:
-            Generated response text
+            Generated response text (str) or dict with tool_calls
         """
         temp = temperature if temperature is not None else self.temperature
         
@@ -117,6 +119,14 @@ class BaseAgent(ABC):
             model=self.model,
             temperature=temp,
             max_tokens=max_tokens,
+            tools=tools,
         )
+        
+        # If tool calls are present, return them along with content
+        if response.tool_calls:
+            return {
+                "content": response.text,
+                "tool_calls": response.tool_calls
+            }
         
         return response.text

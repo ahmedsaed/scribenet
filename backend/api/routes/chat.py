@@ -7,11 +7,18 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 import uuid
+import logging
 
 from backend.agents.director import DirectorAgent
 from backend.memory.database import Database
+from backend.utils.config import get_config
 
 router = APIRouter(prefix="/api/projects", tags=["chat"])
+logger = logging.getLogger(__name__)
+
+# Global Director instance with MCP
+_director_instance: Optional[DirectorAgent] = None
+_mcp_initialized = False
 
 
 class ChatMessage(BaseModel):
@@ -26,6 +33,9 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User message")
     conversation_history: Optional[List[ChatMessage]] = Field(
         default_factory=list, description="Previous messages in conversation"
+    )
+    enabled_tools: Optional[List[str]] = Field(
+        default=None, description="List of tool names to enable for this chat (None = all enabled)"
     )
 
 
@@ -49,6 +59,36 @@ def get_db() -> Database:
     return Database()
 
 
+async def get_director() -> DirectorAgent:
+    """
+    Get the global Director instance, initializing MCP if needed.
+    This ensures we reuse the same MCP connections across requests.
+    """
+    global _director_instance, _mcp_initialized
+    
+    if _director_instance is None:
+        _director_instance = DirectorAgent()
+    
+    # Initialize MCP once if enabled
+    if not _mcp_initialized:
+        try:
+            config = get_config()
+            
+            if config.mcp and config.mcp.enabled:
+                servers = [server.model_dump() for server in config.mcp.servers]
+                if servers:
+                    await _director_instance.initialize_mcp(servers)
+                    logger.info(f"MCP initialized with {len(servers)} servers")
+            
+            _mcp_initialized = True
+        except Exception as e:
+            # Log but don't fail - chat can work without MCP
+            logger.warning(f"Failed to initialize MCP: {e}")
+            _mcp_initialized = True  # Mark as attempted to avoid retry spam
+    
+    return _director_instance
+
+
 @router.post(
     "/{project_id}/chat",
     response_model=ChatResponse,
@@ -63,10 +103,11 @@ async def chat_with_director(project_id: str, request: ChatRequest):
     - Provide guidance and suggestions
     - Trigger workflows and coordinate other agents
     - Manage the overall creative direction
+    - Use MCP tools when enabled
     
     Args:
         project_id: Project UUID
-        request: Chat request with message and conversation history
+        request: Chat request with message, conversation history, and optional tool selection
         
     Returns:
         Director's response
@@ -89,8 +130,8 @@ async def chat_with_director(project_id: str, request: ChatRequest):
             detail=f"Failed to get project: {str(e)}",
         )
     
-    # Initialize Director agent
-    director = DirectorAgent()
+    # Get the global Director instance (with MCP initialized)
+    director = await get_director()
     
     try:
         # Save user message to database
@@ -102,11 +143,12 @@ async def chat_with_director(project_id: str, request: ChatRequest):
             message=request.message,
         )
         
-        # Get the response from Director
+        # Get the response from Director with tool support
         response = await director.chat_with_context(
             project=project,
             user_message=request.message,
             conversation_history=request.conversation_history,
+            enabled_tools=request.enabled_tools,
         )
         
         # Save assistant response to database
@@ -177,5 +219,101 @@ async def get_chat_history(project_id: str, limit: int = 100):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get chat history: {str(e)}",
+        )
+
+
+@router.delete(
+    "/{project_id}/chat/history",
+    status_code=status.HTTP_200_OK,
+)
+async def clear_chat_history(project_id: str):
+    """
+    Clear all chat history for a project.
+    
+    Args:
+        project_id: Project UUID
+        
+    Returns:
+        Success message
+    """
+    db = get_db()
+    
+    try:
+        # Verify project exists
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project {project_id} not found",
+            )
+        
+        # Clear chat messages
+        db.clear_chat_messages(project_id)
+        
+        return {"message": "Chat history cleared successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear chat history: {str(e)}",
+        )
+
+
+@router.get(
+    "/{project_id}/chat/tools",
+    status_code=status.HTTP_200_OK,
+)
+async def get_available_tools(project_id: str):
+    """
+    Get available MCP tools organized by server.
+    
+    Args:
+        project_id: Project UUID (for auth context)
+        
+    Returns:
+        Dictionary mapping server names to lists of tools
+    """
+    db = get_db()
+    
+    # Verify project exists
+    try:
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project {project_id} not found",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get project: {str(e)}",
+        )
+    
+    # Get the global Director instance (with MCP initialized)
+    director = await get_director()
+    
+    try:
+        # Check if MCP is enabled
+        config = get_config()
+        
+        if not config.mcp or not config.mcp.enabled:
+            return {"enabled": False, "servers": {}}
+        
+        # Get tools organized by server
+        tools_by_server = director.get_tools_by_server()
+        
+        return {
+            "enabled": True,
+            "servers": tools_by_server
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get available tools: {str(e)}",
         )
 

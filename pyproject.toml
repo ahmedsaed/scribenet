@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A self-hosted multi-agent system for collaborative book writing"
 authors = ["Ahmed"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
@@ -26,6 +27,7 @@ python-dateutil = "^2.8.2"
 sentence-transformers = "^2.2.2"
 rich = "^13.5.2"
 mcp = "^1.20.0"
+posthog = ">=2.4.0,<6.0.0" # Pinning to avoid issues with chromadb
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"
