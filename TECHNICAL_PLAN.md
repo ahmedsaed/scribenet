@@ -1,16 +1,16 @@
 # ScribeNet: Technical Implementation Plan
 
-> A self-hosted multi-agent system for collaborative book writing
+> A self-hosted multi-agent system for collaborative book writing with interactive guidance
 
-**Last Updated:** November 4, 2025
+**Last Updated:** November 6, 2025
 
 ---
 
 ## 📋 Project Overview
 
 **Name:** ScribeNet  
-**Goal:** Self-hosted LLM agent system for writing, editing, and refining books collaboratively  
-**Architecture:** Multi-agent system with shared memory and orchestration layer
+**Goal:** Self-hosted LLM agent system for writing, editing, and refining books with AI guidance  
+**Architecture:** Multi-agent system with shared memory, MCP tool integration, and interactive chat interface
 
 ---
 
@@ -21,21 +21,26 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Next.js Dashboard                         │
-│              (Visualization & Manual Control)                │
+│        (Chat Interface + Project Visualization)              │
 └────────────────────┬─────────────────────────────────────────┘
                      │ WebSocket + REST API
 ┌────────────────────┴─────────────────────────────────────────┐
 │                   FastAPI Backend                            │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │            LangGraph Orchestrator                      │  │
+│  │               Agent System                            │  │
 │  │  ┌─────────────────────────────────────────────────┐  │  │
-│  │  │          Director Agent (Coordinator)           │  │  │
+│  │  │    Director Agent (Interactive Guide)           │  │  │
+│  │  │    - Chat interface for user interaction        │  │  │
+│  │  │    - Coordinates other agents via tools         │  │  │
+│  │  │    - MCP tool calling integration               │  │  │
 │  │  └────┬────────────────────────────────────────┬───┘  │  │
 │  │       │                                        │      │  │
 │  │  ┌────┴──────┐  ┌──────────┐  ┌──────────┐  ┌┴────┐ │  │
 │  │  │ Outline   │  │ Writers  │  │ Editors  │  │Critic│ │  │
 │  │  │  Agent    │  │ (Multi)  │  │ (Multi)  │  │Agent │ │  │
 │  │  └───────────┘  └──────────┘  └──────────┘  └──────┘ │  │
+│  │                                                        │  │
+│  │  All agents emit status via WebSocket automatically   │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                              │                               │
 │        ┌─────────────────────┼────────────────────┐          │
@@ -44,6 +49,13 @@
 │  │   Ollama   │    │   Chroma DB      │   │   SQLite    │  │
 │  │  (Models)  │    │ (Vector Store)   │   │  (State)    │  │
 │  └────────────┘    └──────────────────┘   └─────────────┘  │
+│                              │                               │
+│  ┌───────────────────────────┴─────────────────────────┐   │
+│  │           MCP (Model Context Protocol)               │   │
+│  │  - File system tools (read/write/search)             │   │
+│  │  - Git operations (commit, diff, history)            │   │
+│  │  - Custom tools (extensible)                         │   │
+│  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
                      ┌────────┴──────────┐
@@ -52,41 +64,71 @@
                      └───────────────────┘
 ```
 
+### Key Design Decisions
+
+1. **No CLI**: All interaction through web dashboard with chat interface
+2. **No Orchestration Layer**: Agents are invoked directly or via Director agent using MCP tools
+3. **MCP Integration**: Director can call tools (file operations, git, custom functions)
+4. **Real-time Updates**: WebSocket status emission from all agents automatically
+5. **Stateless Agents**: Fresh instances per request (except cached MCP connections)
+
 ---
 
 ## 🧠 Agent Specifications
 
 ### 1. Director Agent
 
-**Responsibility:** Project orchestration, task delegation, quality control
+**Responsibility:** Interactive guidance, project orchestration, tool coordination
 
 **Key Functions:**
+- **Interactive Chat**: Conversational interface for user guidance and questions
+- **MCP Tool Calling**: Invoke tools for file operations, git commands, searches
 - Parse user input (genre, theme, length, style preferences)
-- Create and maintain project roadmap
-- Break book into chapters/sections
-- Assign writing tasks to Writer agents
-- Trigger Editor/Critic reviews at appropriate stages
-- Resolve conflicts between agent suggestions
-- Track project completion metrics
+- Provide creative suggestions and project guidance
+- Answer questions about the project or writing process
+- Coordinate other agents through tool invocations (future)
+- Track project state and provide status updates
+
+**MCP Tools Available** (via config.yaml):
+- File system operations (read, write, list, search)
+- Git operations (commit, diff, history, branches)
+- Custom extensible tools
+
+**Real-time Status**:
+- Emits `agent_working` when processing requests
+- Emits `agent_completed` when responses are generated  
+- Emits `agent_error` on failures
+- WebSocket updates visible in dashboard
 
 **Data Structures:**
-```
+```python
 project_state = {
   "project_id": "uuid",
+  "title": "Book Title",
   "genre": "sci-fi",
   "target_chapters": 25,
   "completed_chapters": 3,
-  "current_phase": "drafting", // planning, drafting, editing, finalizing
   "vision_document": "markdown_text",
-  "active_tasks": [...],
-  "decisions_log": [...]
+  "status": "active"  # planning, active, completed
 }
 ```
 
+**Chat Integration:**
+- Maintains conversation history in database
+- Context includes project details and chat history
+- Supports tool calling (MCP) during conversation
+- Can invoke other agents via tools (planned feature)
+
 **Prompting Strategy:**
-- System prompt defines role as project manager
-- Include current project state and vision document in context
-- Use structured output (JSON) for task assignments
+- System prompt defines role as creative director and guide
+- Include current project state in context
+- Conversational and helpful tone
+- Can request tool usage from LLM (MCP integration)
+
+**Status Emission:**
+- Automatically emits status via BaseAgent methods
+- WebSocket updates shown in dashboard AgentStatusCard
+- No manual status management needed
 
 ---
 
@@ -141,26 +183,33 @@ project_state = {
 1. **Narrative Writer** - Main storytelling, prose, action
 2. **Dialogue Writer** - Character conversations, voice consistency
 3. **Description Writer** - Scenes, settings, worldbuilding details
-4. **Technical Writer** - Scientific/technical accuracy (optional)
+
+**Note**: Currently implemented as a single agent with mode selection. Can be invoked for specific types.
 
 **Key Functions:**
 - Receive writing assignment (chapter, scene, or section)
 - Retrieve context (previous chapters, character info, outline)
 - Generate draft content
-- Tag sections with metadata (POV, location, time, characters present)
 - Handle rewrites based on feedback
+
+**Status Emission:**
+- Emits `agent_working` when generating content
+- Emits `agent_completed` on success
+- Emits `agent_error` on failure
+- All automatic via BaseAgent
 
 **Input Context:**
 - Relevant outline section
 - Character profiles involved in scene
-- Previous 2-3 chapters (for continuity)
+- Previous chapters (for continuity)
 - Style guide/reference examples
-- Specific writing instructions from Director
+- Specific writing instructions
 
 **Model Routing:**
+- Configurable per agent type in config.yaml
 - Fast drafts: Llama 3.1 8B
-- Quality prose: Llama 3.1 70B or Qwen 2.5 32B
-- Specialized voice: Fine-tuned models (future)
+- Quality prose: Qwen 2.5 14B
+- All handled by Ollama
 
 ---
 
@@ -171,12 +220,17 @@ project_state = {
 2. **Style Editor** - Voice consistency, rhythm, flow
 3. **Continuity Editor** - Story bible compliance, timeline consistency
 
+**Note**: Currently implemented as a single agent with pass type selection.
+
 **Key Functions:**
 - Receive draft text + edit instructions
 - Apply specific editing pass
-- Track changes (diff format)
-- Provide explanations for significant changes
-- Escalate major issues to Director
+- Provide explanations for changes
+- Return edited content
+
+**Status Emission:**
+- Automatic via BaseAgent (working → completed/error)
+- Visible in dashboard in real-time
 
 **Edit Passes (Sequential):**
 ```
@@ -184,19 +238,19 @@ Draft → Grammar Edit → Style Edit → Continuity Edit → Final
 ```
 
 **Quality Metrics:**
+- Can be implemented as separate evaluations
 - Grammar error count
-- Readability score (Flesch-Kincaid)
-- Style consistency score (vs. reference)
-- Continuity flags (character inconsistencies, timeline errors)
+- Readability score
+- Style consistency score
 
 ---
 
 ### 5. Critic Agent
 
-**Responsibility:** Quality assessment, reader perspective simulation
+**Responsibility:** Quality assessment, feedback generation
 
 **Key Functions:**
-- Rate sections on multiple dimensions (1-10 scale):
+- Rate content on multiple dimensions (1-10 scale):
   - Engagement/pacing
   - Character consistency
   - Emotional impact
@@ -204,9 +258,12 @@ Draft → Grammar Edit → Style Edit → Continuity Edit → Final
   - Prose quality
   - Dialogue naturality
 - Provide specific, actionable feedback
-- Identify weak sections for rewrite
-- Simulate reader reactions
-- Track quality trends over chapters
+- Identify weak sections for improvement
+- Track quality trends
+
+**Status Emission:**
+- Automatic via BaseAgent
+- Real-time updates in dashboard
 
 **Scoring Output:**
 ```json
@@ -222,38 +279,36 @@ Draft → Grammar Edit → Style Edit → Continuity Edit → Final
   },
   "feedback": "The pacing drags in the middle section...",
   "suggestions": [...],
-  "requires_rewrite": false,
-  "flag_for_director": false
+  "overall_score": 7.5
 }
 ```
 
 ---
 
-### 🗜️ **6. Summarizer Agent**
+### 6. Summarizer Agent
 
 **Responsibility:** Context compression, narrative history condensation
 
 **Key Functions:**
 - Generate concise summaries of completed chapters
 - Compress old context when token limit approaches
-- Maintain critical continuity information in summaries
-- Create hierarchical summaries (brief overview + chapter details)
-- Preserve active plot threads and unresolved elements
+- Maintain critical continuity information
+- Create hierarchical summaries
 
-**Trigger Conditions:**
-- Context window usage > 80% threshold
-- Manual request from Director agent
-- Periodic summarization after N chapters
+**Status Emission:**
+- Automatic via BaseAgent
+- Shows "working" while summarizing
 
-**Output Format:** Structured markdown with:
-- Overall arc summary (2-3 paragraphs)
+**Output Format:** 
+Structured markdown with:
+- Overall arc summary
 - Chapter-by-chapter key points
 - Active subplot tracking
-- Continuity notes (characters, locations, established rules)
+- Continuity notes
 
 **Model Configuration:**
-- Use efficient model (Llama 3.1 8B Q8)
-- Low temperature (0.3-0.4) for factual accuracy
+- Uses efficient model (Llama 3.1 8B)
+- Low temperature (0.3-0.4) for accuracy
 - Target 10:1 compression ratio
 
 ---
@@ -264,7 +319,7 @@ Draft → Grammar Edit → Style Edit → Continuity Edit → Final
 
 #### 1. SQLite Database
 
-**Purpose:** Structured state management, project metadata
+**Purpose:** Structured state management, project metadata, chat history
 
 **Schema:**
 ```sql
@@ -316,31 +371,32 @@ CREATE TABLE story_elements (
   FOREIGN KEY(project_id) REFERENCES projects(id)
 );
 
--- Task Queue
-CREATE TABLE tasks (
+-- Chat Messages (NEW)
+CREATE TABLE chat_messages (
   id TEXT PRIMARY KEY,
   project_id TEXT,
-  agent_type TEXT,
-  task_type TEXT,
-  status TEXT, -- pending, in_progress, completed, failed
-  input_data JSON,
-  output_data JSON,
+  sender TEXT, -- 'user' or 'assistant'
+  message TEXT,
   created_at TIMESTAMP,
-  completed_at TIMESTAMP,
   FOREIGN KEY(project_id) REFERENCES projects(id)
 );
 
--- Agent Decisions Log
-CREATE TABLE decisions (
+-- Quality Scores (NEW)
+CREATE TABLE quality_scores (
   id TEXT PRIMARY KEY,
-  project_id TEXT,
-  agent_id TEXT,
-  decision_type TEXT,
-  rationale TEXT,
-  timestamp TIMESTAMP,
-  FOREIGN KEY(project_id) REFERENCES projects(id)
+  chapter_id TEXT,
+  dimension TEXT, -- engagement, quality, etc.
+  score INTEGER, -- 0-10
+  created_at TIMESTAMP,
+  FOREIGN KEY(chapter_id) REFERENCES chapters(id)
 );
 ```
+
+**Key Features:**
+- Project isolation by project_id
+- Chat history persistence
+- Version tracking for chapters
+- Quality metrics storage
 
 #### 2. ChromaDB Vector Store
 
@@ -402,85 +458,7 @@ project-{id}/
 
 ---
 
-## 🔄 Orchestration Layer (LangGraph)
-
-### Workflow Graphs
-
-#### Main Writing Workflow
-
-```
-Start → Director (Plan) → Outline Agent → Director (Review)
-                                              ↓
-                                         Assign Chapters
-                                              ↓
-                                    ┌─────────┴──────────┐
-                                    ↓                    ↓
-                            Writer Agent(s)      (Parallel execution)
-                                    ↓                    ↓
-                                    └─────────┬──────────┘
-                                              ↓
-                                      Collect Drafts
-                                              ↓
-                                    Editor Agent (Pass 1)
-                                              ↓
-                                    Editor Agent (Pass 2)
-                                              ↓
-                                    Editor Agent (Pass 3)
-                                              ↓
-                                       Critic Agent
-                                              ↓
-                                    Director (Review)
-                                              ↓
-                                    ┌─────────┴──────────┐
-                                    ↓                    ↓
-                              Accept/Next          Revise (loop back)
-```
-
-#### Revision Sub-Workflow
-
-```
-Critic Feedback → Director (Analyze) → Assign Rewrite
-                                            ↓
-                                    Specific Writer Agent
-                                            ↓
-                                    Targeted Editor Pass
-                                            ↓
-                                       Critic (Re-check)
-                                            ↓
-                                    Approve or Loop
-```
-
-### State Management
-
-**LangGraph State Schema:**
-```python
-{
-  "project_id": "uuid",
-  "current_chapter": 3,
-  "active_agents": ["narrative_writer", "editor_grammar"],
-  "pending_tasks": [...],
-  "context": {
-    "outline": "...",
-    "previous_chapters": [...],
-    "story_bible": {...}
-  },
-  "iteration_count": 2,
-  "max_iterations": 5,
-  "quality_threshold": 7.0,
-  "current_scores": {...}
-}
-```
-
-### Conditional Routing
-
-- If quality score < threshold → Revision workflow
-- If continuity errors detected → Outline agent review
-- If major plot change → Director intervention + outline update
-- If iteration limit reached → Escalate to human review
-
----
-
-## 🚀 Backend API (FastAPI)
+##  Backend API (FastAPI)
 
 ### Core Endpoints
 
@@ -491,88 +469,154 @@ Critic Feedback → Director (Analyze) → Assign Rewrite
 - `PUT /api/projects/{id}` - Update project settings
 - `DELETE /api/projects/{id}` - Delete project
 
-#### Writing Operations
-- `POST /api/projects/{id}/start` - Begin writing workflow
-- `POST /api/projects/{id}/chapters/{num}/write` - Generate specific chapter
-- `POST /api/projects/{id}/chapters/{num}/revise` - Revise chapter
-- `GET /api/projects/{id}/chapters/{num}` - Get chapter content
+#### Chat Interface (Primary Interaction)
+- `POST /api/projects/{id}/chat` - Send message to Director agent
+- `GET /api/projects/{id}/chat/history` - Get conversation history
+- `GET /api/projects/{id}/chat/tools` - Get available MCP tools
+- `DELETE /api/projects/{id}/chat/history` - Clear chat history
+
+#### Chapters
 - `GET /api/projects/{id}/chapters` - List all chapters
+- `GET /api/projects/{id}/chapters/{num}` - Get chapter details
+- `POST /api/projects/{id}/chapters` - Create new chapter
+- `PUT /api/projects/{id}/chapters/{num}` - Update chapter
 
-#### Story Bible
-- `GET /api/projects/{id}/story-bible` - Get full story bible
-- `POST /api/projects/{id}/story-bible/characters` - Add character
-- `PUT /api/projects/{id}/story-bible/characters/{name}` - Update character
-- `GET /api/projects/{id}/story-bible/timeline` - Get timeline
-
-#### Agent Status
-- `GET /api/agents/status` - Get status of all agents
-- `GET /api/tasks` - View task queue
-- `POST /api/tasks/{id}/cancel` - Cancel pending task
-
-#### Memory & Search
-- `POST /api/search/semantic` - Semantic search across content
-- `GET /api/projects/{id}/versions` - List version history
-- `POST /api/projects/{id}/rollback` - Rollback to previous version
+#### Agent Operations (Future)
+- `POST /api/agents/writer/generate` - Direct writer invocation
+- `POST /api/agents/critic/evaluate` - Direct critic invocation
+- `POST /api/agents/editor/edit` - Direct editor invocation
 
 ### WebSocket Endpoints
 
-- `WS /ws/projects/{id}` - Real-time updates (agent activity, progress)
-- `WS /ws/logs` - System-wide event stream
+- `WS /ws/projects/{id}` - Real-time agent status updates
+  - Agent status changes (working/completed/error/idle)
+  - Progress updates
+  - Tool execution notifications
+  - Chat message events
+
+**WebSocket Event Format:**
+```json
+{
+  "event": "agent_working",
+  "data": {
+    "agent_type": "director",
+    "message": "Processing request...",
+    "progress": 50
+  },
+  "timestamp": "2025-11-06T10:30:00Z"
+}
+```
+
+### MCP Integration
+
+**MCP Servers Configured** (via config.yaml):
+- File system server (read/write/search files)
+- Git server (version control operations)
+- Custom tools (extensible)
+
+**Tool Invocation Flow:**
+1. User asks Director a question requiring tools
+2. Director LLM requests tool usage
+3. Backend executes tool via MCP client
+4. Result returned to LLM
+5. LLM incorporates result in response
+6. User sees final answer
+
+**Configuration:**
+```yaml
+mcp:
+  enabled: true
+  servers:
+    - name: filesystem
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/project"]
+    - name: git
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-git", "--repository", "/path/to/repo"]
+```
 
 ---
 
 ## 🎨 Frontend Dashboard (Next.js)
 
+### Current Implementation
+
+**Tech Stack:**
+- Next.js 15 with App Router
+- TypeScript
+- Tailwind CSS
+- WebSocket for real-time updates
+
 ### Pages/Views
 
-#### 1. Project Dashboard
-- List of all book projects
-- Quick stats (progress, word count, status)
-- Create new project button
+#### 1. Project List (`/`)
+- Grid of all book projects
+- Project cards with status and progress
+- Create new project modal
+- Quick access to each project
 
-#### 2. Project Overview
-- Visual timeline/progress bar
-- Current phase indicator
-- Chapter completion grid
-- Recent agent activity feed
+#### 2. Project Dashboard (`/projects/[id]`)
+**Main view with real-time updates:**
 
-#### 3. Chapter View
-- Side-by-side: Outline | Draft | Final
-- Version history timeline
-- Agent comments/suggestions
-- Edit controls (regenerate, manual edit)
-
-#### 4. Story Bible Explorer
-- Tabbed interface: Characters | Locations | Rules | Timeline
-- Interactive character relationship graph
-- Search functionality
-
-#### 5. Agent Activity Monitor
-- Real-time agent status
-- Task queue visualization
-- Execution logs
-- Performance metrics (tokens used, time per task)
-
-#### 6. Quality Dashboard
-- Chapter-by-chapter quality scores (charts)
-- Trend analysis
-- Critic feedback summary
-- Flagged issues
-
-#### 7. Settings & Configuration
-- Model selection per agent type
-- Temperature/creativity sliders
-- Style preferences
-- Workflow customization
+- **Chat Interface** (Primary interaction):
+  - Conversational interface with Director agent
+  - Message history persistence
+  - Tool selection modal (configure which MCP tools to use)
+  - Clear chat history option
+  
+- **Agent Status Cards**:
+  - Real-time status indicators (idle/working/completed/error)
+  - Pulsing animations for active agents
+  - Elapsed time tooltip on hover
+  - Progress bars for long operations
+  - Status for all 6 agent types visible
+  
+- **Activity Feed**:
+  - Live event log
+  - WebSocket-driven updates
+  - Shows agent actions, completions, errors
+  
+- **Chapter Grid** (Placeholder):
+  - Visual representation of chapters
+  - Status indicators
+  - Quality scores
+  - Click to view/edit
+  
+- **Expandable Sections**:
+  - Quality scores
+  - Project metadata
+  - Export options
 
 ### Key UI Components
 
-- **Chapter Card:** Status, word count, quality score, quick actions
-- **Agent Status Badge:** Idle/Working/Completed with progress
-- **Story Element Card:** Character/location with quick-view modal
-- **Timeline Visualization:** Interactive chapter sequence with dependencies
-- **Diff Viewer:** Show edits between versions
-- **Quality Radar Chart:** Multi-dimensional scores
+Implemented:
+- ✅ **AgentStatusCard** - Real-time agent status with tooltip timer
+- ✅ **ChatMessageBubble** - User/assistant messages
+- ✅ **ToolSelectionModal** - Hierarchical tool configuration
+- ✅ **ConfirmModal** - Branded confirmation dialogs
+- ✅ **ActivityFeed** - Live event stream
+- ✅ **ToastContainer** - Notifications
+- ✅ **ExpandableSection** - Collapsible UI sections
+
+Planned:
+- ⏳ **ChapterGrid** - Visual chapter management
+- ⏳ **StoryBibleViewer** - Character/location database
+- ⏳ **QualityDashboard** - Score visualization
+
+### Real-time Features
+
+**WebSocket Integration:**
+- Agent status updates every operation
+- No polling required
+- Automatic reconnection
+- Project-scoped channels
+
+**Event Types:**
+- `agent_working` - Agent starts processing
+- `agent_completed` - Agent finishes successfully
+- `agent_error` - Agent encounters error
+- `agent_idle` - Agent returns to idle
+- (Future: `tool_executing`, `chapter_completed`, `quality_scored`)
 
 ---
 
@@ -923,15 +967,15 @@ This creates a hierarchical compression allowing unlimited book length.
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Orchestration** | LangGraph | Agent workflow coordination |
 | **Backend** | FastAPI | REST API, WebSocket, business logic |
-| **Frontend** | Next.js (TypeScript) | Dashboard, visualization |
-| **Database** | SQLite | Structured state, metadata |
+| **Frontend** | Next.js 15 (TypeScript) | Dashboard, chat interface |
+| **Database** | SQLite | Structured state, metadata, chat history |
 | **Vector DB** | ChromaDB | Semantic search, embeddings |
 | **LLM Serving** | Ollama | Local inference, model management |
 | **Version Control** | Git (programmatic) | Chapter versioning |
-| **Real-time** | WebSockets | Live updates to frontend |
-| **Task Queue** | Built-in (SQLite-backed) | Agent task management |
+| **Real-time** | WebSockets | Agent status updates, live events |
+| **Tool Integration** | MCP (Model Context Protocol) | File ops, git, extensible tools |
+| **Agent Framework** | Custom (BaseAgent) | Stateless agents with auto-status |
 
 ---
 
@@ -942,218 +986,266 @@ scribenet/
 ├── backend/
 │   ├── api/
 │   │   ├── routes/
-│   │   │   ├── projects.py
-│   │   │   ├── chapters.py
-│   │   │   ├── story_bible.py
-│   │   │   └── agents.py
-│   │   ├── websockets.py
-│   │   └── main.py
+│   │   │   ├── projects.py    # Project CRUD
+│   │   │   ├── chapters.py    # Chapter management
+│   │   │   └── chat.py        # Chat with Director
+│   │   ├── websockets.py      # Real-time updates
+│   │   └── main.py            # FastAPI app
 │   ├── agents/
-│   │   ├── director.py
-│   │   ├── outline.py
-│   │   ├── writer.py
-│   │   ├── editor.py
-│   │   ├── critic.py
-│   │   ├── summarizer.py
-│   │   └── base.py
-│   ├── orchestration/
-│   │   ├── workflows.py
-│   │   ├── graph.py
-│   │   └── state.py
+│   │   ├── base.py            # BaseAgent with auto-status
+│   │   ├── director.py        # Interactive guide + MCP
+│   │   ├── outline.py         # Story structure
+│   │   ├── writer.py          # Content generation
+│   │   ├── editor.py          # Multi-pass editing
+│   │   ├── critic.py          # Quality evaluation
+│   │   └── summarizer.py      # Context compression
+│   ├── mcp/
+│   │   └── client_manager.py # MCP connection manager
 │   ├── memory/
-│   │   ├── database.py
-│   │   ├── vector_store.py
-│   │   ├── git_manager.py
-│   │   ├── story_bible.py
-│   │   └── context_manager.py
+│   │   ├── database.py        # SQLite operations
+│   │   ├── vector_store.py    # ChromaDB wrapper
+│   │   └── git_manager.py     # Git operations
 │   ├── llm/
-│   │   ├── ollama_client.py
-│   │   ├── prompts.py
-│   │   ├── models.py
-│   │   └── token_counter.py
+│   │   ├── ollama_client.py   # Ollama API client
+│   │   └── prompts.py         # Prompt templates
 │   └── utils/
-│       ├── config.py
-│       └── logging.py
+│       ├── config.py          # Configuration management
+│       └── logging.py         # Logging setup
 ├── frontend/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx (dashboard)
-│   │   │   ├── projects/
-│   │   │   │   └── [id]/
-│   │   │   │       ├── page.tsx
-│   │   │   │       ├── chapters/[num]/page.tsx
-│   │   │   │       └── story-bible/page.tsx
-│   │   │   └── layout.tsx
-│   │   ├── components/
-│   │   │   ├── ChapterCard.tsx
-│   │   │   ├── AgentMonitor.tsx
-│   │   │   ├── StoryBibleViewer.tsx
-│   │   │   ├── QualityChart.tsx
-│   │   │   └── DiffViewer.tsx
-│   │   ├── lib/
-│   │   │   ├── api.ts
-│   │   │   └── websocket.ts
-│   │   └── types/
-│   │       └── index.ts
-│   ├── public/
+│   ├── app/
+│   │   ├── page.tsx                        # Project list
+│   │   ├── projects/[id]/page.tsx          # Main dashboard
+│   │   ├── layout.tsx                      # Root layout
+│   │   └── globals.css                     # Global styles
+│   ├── components/
+│   │   ├── AgentStatusCard.tsx             # Real-time agent status
+│   │   ├── ChatMessageBubble.tsx           # Chat UI
+│   │   ├── ToolSelectionModal.tsx          # MCP tool config
+│   │   ├── ConfirmModal.tsx                # Confirmations
+│   │   ├── ActivityFeed.tsx                # Event log
+│   │   ├── ChapterGrid.tsx                 # Chapter overview
+│   │   ├── ToastContainer.tsx              # Notifications
+│   │   └── ExpandableSection.tsx           # Collapsible UI
+│   ├── lib/
+│   │   ├── api.ts                          # API client
+│   │   ├── websocket.ts                    # WebSocket hook
+│   │   └── branding.ts                     # Brand config
 │   └── package.json
-├── models/
-│   └── (downloaded LLM models)
 ├── data/
-│   ├── projects/ (git repos per project)
-│   ├── scribenet.db (SQLite)
-│   └── chroma/ (vector DB storage)
-├── docker-compose.yml
-├── pyproject.toml
+│   ├── projects/                           # Git repos per project
+│   │   └── project-{id}/
+│   │       ├── outline.md
+│   │       ├── chapters/
+│   │       ├── drafts/
+│   │       └── metadata/
+│   ├── scribenet.db                        # SQLite database
+│   └── chroma/                             # Vector DB storage
+├── config.yaml                              # System configuration
+├── pyproject.toml                           # Python dependencies
 ├── README.md
 └── TECHNICAL_PLAN.md (this file)
 ```
 
 ---
 
-## 🚦 Development Phases
+## 🚦 Development Status
 
-### Phase 1: Foundation (MVP) ✅ COMPLETE
-- [x] SQLite schema + basic database operations
-- [x] Ollama setup with single model (llama3.1:8b)
-- [x] Basic FastAPI with project CRUD endpoints
-- [x] Director agent with simple task assignment
-- [x] Single Writer agent (narrative only)
-- [x] Simple LangGraph workflow (linear: plan → write → done)
-- [x] CLI interface for testing
+### ✅ Phase 1: Foundation (COMPLETE)
+- SQLite schema with CRUD operations
+- Ollama integration with async client
+- Basic FastAPI with project endpoints
+- All 6 core agents (Director, Outline, Writer, Editor, Critic, Summarizer)
+- BaseAgent with automatic status emission
+- Memory systems (SQLite, ChromaDB, Git)
 
-**Status**: All Phase 1 components implemented and functional.
+### ✅ Phase 2: Core Backend (COMPLETE)
+- All agent types implemented and functional
+- Database persistence with version tracking
+- Vector store for semantic search
+- Git integration for version control
+- Chat API with conversation history
+- MCP integration for tool calling
 
-**Files Created**:
-- `backend/memory/database.py` - Complete SQLite schema with CRUD operations
-- `backend/llm/ollama_client.py` - Ollama client with async support
+### ✅ Phase 3: Frontend Dashboard (COMPLETE)
+- Next.js 15 with App Router
+- Project list and creation
+- Main project dashboard with real-time updates
+- Chat interface with Director agent
+- Agent status cards with live WebSocket updates
+- Tool selection modal for MCP configuration
+- Activity feed and event logging
+- Responsive design with Tailwind CSS
+
+### ✅ Phase 4: Real-time Features (COMPLETE)
+- WebSocket server for live updates
+- Agent status emission (working/completed/error/idle)
+- Automatic status updates from BaseAgent methods
+- Project-scoped WebSocket channels
+- Real-time UI updates without polling
+
+### 🎯 Phase 5: Enhancements (IN PROGRESS)
+- [ ] Chapter management UI (grid, details, editing)
+- [ ] Story bible interface (characters, locations, timeline)
+- [ ] Quality dashboard with score visualization
+- [ ] Export functionality (PDF, EPUB, DOCX)
+- [ ] Advanced MCP tool integration (invoke agents via tools)
+
+### 🚀 Phase 6: Advanced Features (PLANNED)
+- [ ] Streaming LLM responses (token-by-token)
+- [ ] Progress bars for long operations
+- [ ] Multi-step workflow automation
+- [ ] Fine-tuned models for specific genres
+- [ ] Advanced visualization (character graphs, plot timelines)
+
+---
+
+## 📊 Current Status Summary
+
+**What Works:**
+- ✅ All 6 agents functional with automatic status updates
+- ✅ Interactive chat interface with Director agent
+- ✅ MCP tool calling (file operations, git, extensible)
+- ✅ Real-time WebSocket updates for all agents
+- ✅ Database persistence (projects, chapters, chat history, scores)
+- ✅ Vector store for semantic search
+- ✅ Git version control
+- ✅ Responsive web dashboard
+- ✅ Multi-project support
+- ✅ Tool selection and configuration UI
+
+**What's Next:**
+- ⏳ Chapter management interface
+- ⏳ Story bible visualization
+- ⏳ Quality score charts
+- ⏳ Content export features
+- ⏳ Workflow automation via Director + tools
+
+**Testing**: Use the web dashboard to create projects and interact with the Director agent via chat.
 - `backend/api/main.py` + `backend/api/routes/projects.py` - FastAPI with project endpoints
 - `backend/agents/base.py` - Base agent class with Ollama integration
 - `backend/agents/director.py` - Director agent with planning and task assignment
 - `backend/agents/writer.py` - Narrative writer agent
 - `backend/orchestration/workflows.py` + `backend/orchestration/state.py` - LangGraph workflows
 - `cli.py` - Command-line testing interface
-- `config.yaml` - Configuration file
-- `pyproject.toml` - Project dependencies
-
-**Testing**: Use `poetry run python cli.py` to test the complete workflow.
-
-### Phase 2: Core Agents & Memory ✅ COMPLETE
-
-**Status**: Backend foundation complete with 6 core agents and full memory system.
-
-**Implemented Agents** (6 types as per original plan):
-1. ✅ **Director** - Project orchestration, task delegation, planning
-2. ✅ **Outline** - Story structure, story bible, plot consistency
-3. ✅ **Writer** - Content generation (supports narrative/dialogue/description modes)
-4. ✅ **Editor** - Multi-pass editing (grammar/style/continuity passes)
-5. ✅ **Critic** - Quality evaluation, feedback generation, revision decisions
-6. ✅ **Summarizer** - Context compression, chapter summaries
-
-**Memory Systems** (3 types):
-1. ✅ **SQLite** - Structured data (projects, chapters, story bible, scores)
-2. ✅ **ChromaDB** - Semantic search (chapters, story bible, style examples)
-3. ✅ **Git** - Version control (chapter history, rollback, tags)
-
-**Workflow** (LangGraph orchestration):
-- ✅ Project planning → Outline creation → Chapter writing loop
-- ✅ Write → Edit → Critique → Revise (if needed) → Next chapter
-- ✅ Context management with automatic summarization
-- ✅ Quality gates and revision limits
-
-**What's Working**:
-- ✅ End-to-end book creation (tested via CLI)
-- ✅ All agents integrated and functional
-- ✅ Database persistence and version tracking
-- ✅ Git auto-commits on milestones
-
-**What Needs Improvement**:
-- ⚠️ **Workflow is too rigid** - Too many specific functions, hard to modify
-- ⚠️ **No visibility** - Can't see what's happening in real-time
-- ⚠️ **Limited API** - Only basic project CRUD endpoints
-- ⚠️ **No frontend** - CLI only, no dashboard to monitor/control
-
-**Phase 2 Verdict**: Core functionality works, but needs better structure and transparency.
-
-### Phase 3: Frontend Dashboard 🎨 PRIORITY
-
-**Goal**: Build a web dashboard for transparency, control, and monitoring. Stop being blind!
-
-**Why This Matters**:
-- **Visibility**: See what agents are doing in real-time
-- **Control**: Start/stop workflows, edit content, adjust settings
-- **Debugging**: Watch the process, catch issues early
-- **Confidence**: Know the system is working, not guessing
 
 ---
 
-#### 3.1: Quick Backend Setup (1 day)
+## ⚙️ Configuration
 
-Before frontend, we need minimal API endpoints:
+### System Configuration (config.yaml)
 
-**New Endpoints Needed**:
-```python
-# backend/api/routes/projects.py (add these)
-POST /api/projects/{id}/start          # Start writing workflow
-GET  /api/projects/{id}/status         # Get current status
-GET  /api/projects/{id}/chapters       # List chapters with status
+```yaml
+# Project defaults
+project:
+  default_word_count_per_chapter: 3000
+  max_revision_iterations: 3
+  quality_threshold: 7.0
 
-# backend/api/routes/chapters.py (new file)
-GET  /api/projects/{id}/chapters/{num} # Get chapter content + scores
-POST /api/projects/{id}/chapters/{num}/regenerate # Regenerate chapter
+# Agent models and settings
+agents:
+  director:
+    model: "llama3.1:8b"
+    temperature: 0.7
+  outline:
+    model: "llama3.1:8b"
+    temperature: 0.6
+  writers:
+    narrative:
+      model: "qwen2.5:14b"
+      temperature: 0.8
+    dialogue:
+      model: "qwen2.5:7b"
+      temperature: 0.9
+    description:
+      model: "qwen2.5:7b"
+      temperature: 0.85
+  editors:
+    grammar:
+      model: "llama3.1:8b"
+      temperature: 0.3
+    style:
+      model: "llama3.1:8b"
+      temperature: 0.4
+    continuity:
+      model: "llama3.1:8b"
+      temperature: 0.5
+  critic:
+    model: "llama3.1:8b"
+    temperature: 0.5
+  summarizer:
+    model: "llama3.1:8b"
+    temperature: 0.4
+    compression_ratio: 10
 
-# backend/api/routes/agents.py (new file)  
-GET  /api/agents/status                # What's each agent doing?
+# MCP tool integration
+mcp:
+  enabled: true
+  servers:
+    - name: filesystem
+      command: npx
+      args:
+        - "-y"
+        - "@modelcontextprotocol/server-filesystem"
+        - "/path/to/projects"
+    - name: git
+      command: npx
+      args:
+        - "-y"
+        - "@modelcontextprotocol/server-git"
+        - "--repository"
+        - "/path/to/repo"
 
-# backend/api/websocket.py (new file)
-WS   /ws/projects/{id}                 # Real-time updates
+# Memory systems
+memory:
+  chroma_collection: "scribenet"
+  embedding_model: "all-MiniLM-L6-v2"
+  vector_search_top_k: 5
+  context_window_threshold: 0.8
+
+# LLM backend
+llm:
+  ollama_url: "http://localhost:11434"
+  num_ctx: 32768
+  timeout: 120
+
+# Git integration
+git:
+  auto_commit: true
+  commit_on: ["chapter_complete", "outline_update"]
 ```
 
-**WebSocket Events**:
-- `workflow_started`, `workflow_completed`
-- `agent_started`, `agent_completed` (with agent name + task)
-- `chapter_completed` (with content preview)
-- `quality_scored` (with scores)
-- `error` (with details)
+### Multi-User & Multi-Project Support
 
-**Keep It Simple**: Don't need full CRUD for everything yet, just enough to see what's happening.
+**Current Implementation**: ✅ Fully supported
+
+**Architecture**:
+- Agents are stateless (fresh instance per request)
+- Projects isolated by `project_id` in database
+- WebSocket channels scoped to projects (`/ws/projects/{project_id}`)
+- Git repositories per project (`data/projects/project-{id}/`)
+- Vector store filtered by project_id metadata
+- Singleton MCP connection (safe, no state bleeding)
+
+**Behavior**:
+- Multiple users can work on different projects simultaneously ✅
+- Multiple users on same project: works, but last write wins ⚠️
+- No collaboration conflict resolution (designed for single user)
 
 ---
 
-#### 3.2: Frontend Dashboard (4-5 days)
+##  Resources & References
 
-**Tech Stack**:
-- Next.js 14 + TypeScript
-- Tailwind CSS (fast styling)
-- Shadcn/ui components (pre-built, beautiful)
-- WebSocket for real-time updates
-
-**Page Structure**:
-
-```
-/                              # Project list
-/projects/[id]                 # Project overview (THE MAIN VIEW)
-/projects/[id]/chapters/[num]  # Chapter detail view
-```
+- **Ollama Documentation:** https://github.com/ollama/ollama
+- **MCP (Model Context Protocol):** https://modelcontextprotocol.io/
+- **ChromaDB Guide:** https://docs.trychroma.com/
+- **FastAPI Best Practices:** https://fastapi.tiangolo.com/
+- **Next.js Documentation:** https://nextjs.org/docs
 
 ---
 
-#### 3.3: Main Dashboard View (Priority!)
+**Status**: Production-ready for personal use! 🎊
 
-**URL**: `/projects/[id]`
-
-This is where you see EVERYTHING happening:
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  📖 The Last Starship (Sci-Fi)                      [⏸ Pause] │
-│  Progress: Chapter 3/20  ●●●○○○○○○○○○○○○○○○○○○○ 15%          │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  🤖 AGENT ACTIVITY (Real-time)                               │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │ ✍️  Writer       Working on Chapter 3...       [2:34]  │  │
-│  │ 📊 Critic       Idle                                   │  │
+Interactive chat interface with Director agent, real-time status updates for all agents, MCP tool integration, and comprehensive memory systems all working together.
 │  │ ✂️  Editor       Waiting                                │  │
 │  │ 📝 Outline      Completed                              │  │
 │  │ 🎯 Director     Monitoring                             │  │
@@ -1305,45 +1397,7 @@ Simple list of all projects:
 
 **Estimated Time**: 5-6 days total
 
----
 
-### Phase 4: Workflow Improvements & Polish 🔧
-
-**Goal**: Fix workflow rigidity and improve backend structure (AFTER frontend works).
-
-**Why Later**: First, we need to SEE what's happening. Then we can improve it intelligently.
-
-#### Key Improvements:
-- [ ] Refactor workflows.py into cleaner, more flexible architecture
-- [ ] Use dynamic node generation instead of hardcoded functions
-- [ ] Make agent selection configurable
-- [ ] Add workflow templates (fast draft vs. high quality)
-- [ ] Let OutlineAgent handle outline creation
-- [ ] Add story bible generation
-- [ ] Export to PDF/EPUB/DOCX
-- [ ] Manual intervention points
-
-**Estimated Time**: 3-4 days
-
----
-
-### Phase 5: Advanced Features 🚀
-
-Cool ideas for later:
-- Fine-tuned models for specific genres
-- Multi-author collaboration  
-- Advanced visualization (character graphs, plot timelines)
-- Reader persona simulation
-- Plugin system
-- Mobile app
-
----
-
-## 📊 Current Status
-
-**✅ Phase 1-2 Complete**: Backend foundation, 6 agents, 3 memory systems, workflows
-**🎯 Phase 3 Next**: Frontend dashboard for transparency and control
-**📋 Phase 4-5**: Refinement and advanced features
 
 ---
 

@@ -398,6 +398,9 @@ Be specific and actionable.""",
         Returns:
             Director's response
         """
+        # Set project_id for WebSocket emissions
+        self.project_id = project.get("id")
+        
         # Build messages array with project context
         messages = [
             {"role": "system", "content": self.build_system_prompt(project)}
@@ -457,7 +460,7 @@ Be specific and actionable.""",
         while iterations < max_tool_iterations:
             iterations += 1
             
-            # Get response from the LLM
+            # Get response from the LLM (status handled by BaseAgent.chat)
             response = await self.chat(messages, max_tokens=1000, tools=tools)
             
             # Check if response contains tool calls

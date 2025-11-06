@@ -68,7 +68,19 @@ export default function AgentStatusCard({ agent }: AgentStatusCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-bold capitalize text-gray-900">{agent.type}</h3>
-            <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusColors[agent.status].dot}`} />
+            {/* Status indicator with tooltip */}
+            <div className="relative group">
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusColors[agent.status].dot}`} />
+              {/* Tooltip - shown on hover */}
+              {agent.status === 'working' && elapsedTime && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
+                  <div className="bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap font-mono">
+                    {elapsedTime}
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           {agent.status === 'working' && agent.progress !== undefined && (
             <div className="w-full bg-gray-200 rounded-full h-1 mt-1.5 overflow-hidden">
@@ -79,9 +91,6 @@ export default function AgentStatusCard({ agent }: AgentStatusCardProps) {
             </div>
           )}
         </div>
-        {agent.status === 'working' && elapsedTime && (
-          <span className="text-[10px] text-gray-500 font-mono">{elapsedTime}</span>
-        )}
       </div>
     </div>
   );

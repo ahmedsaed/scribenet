@@ -142,27 +142,41 @@ export default function ProjectDashboard() {
       id: `${Date.now()}-${Math.random()}`,
       timestamp: lastEvent.timestamp || new Date().toISOString(),
       type: eventType as any,
-      message: lastEvent.message || eventType,
-      agentType: lastEvent.agent_type,
+      message: lastEvent.data?.message || lastEvent.message || eventType,
+      agentType: lastEvent.data?.agent_type || lastEvent.agent_type,
       metadata: lastEvent.data,
     };
     setActivities((prev) => [...prev, activity]);
 
-    // Update agent status
-    if (lastEvent.agent_type) {
-      const agentType = lastEvent.agent_type as AgentType;
-      setAgents((prev) => ({
-        ...prev,
-        [agentType]: {
-          type: agentType,
-          status: eventType === 'agent_started' ? 'working' : 
-                  eventType === 'agent_completed' ? 'completed' : 
-                  eventType === 'error' ? 'error' : prev[agentType].status,
-          currentTask: lastEvent.message,
-          lastUpdated: new Date().toISOString(),
-          progress: lastEvent.data?.progress,
-        },
-      }));
+    // Update agent status from WebSocket events
+    const agentType = (lastEvent.data?.agent_type || lastEvent.agent_type) as AgentType;
+    
+    if (agentType) {
+      setAgents((prev) => {
+        const currentAgent = prev[agentType] || { type: agentType, status: 'idle' };
+        
+        let newStatus = currentAgent.status;
+        if (eventType === 'agent_working') {
+          newStatus = 'working';
+        } else if (eventType === 'agent_completed') {
+          newStatus = 'completed';
+        } else if (eventType === 'agent_error') {
+          newStatus = 'error';
+        } else if (eventType === 'agent_idle') {
+          newStatus = 'idle';
+        }
+        
+        return {
+          ...prev,
+          [agentType]: {
+            type: agentType,
+            status: newStatus,
+            currentTask: lastEvent.data?.message || lastEvent.message,
+            lastUpdated: new Date().toISOString(),
+            progress: lastEvent.data?.progress,
+          },
+        };
+      });
     }
 
     // Update chapters on completion
