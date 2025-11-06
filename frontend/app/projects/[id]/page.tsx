@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AgentStatusCard, { AgentState, AgentType } from '@/components/AgentStatusCard';
 import ChapterGrid, { Chapter } from '@/components/ChapterGrid';
@@ -46,8 +46,18 @@ export default function ProjectDashboard() {
   const [showClearChatConfirm, setShowClearChatConfirm] = useState(false);
   const [isClearingChat, setIsClearingChat] = useState(false);
 
+  // Ref for chat messages container
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
+
   // WebSocket connection for real-time updates
   const { lastEvent, isConnected } = useProjectWebSocket(projectId);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   // Load initial project data
   useEffect(() => {
@@ -422,9 +432,9 @@ export default function ProjectDashboard() {
 
             {/* Activity Feed */}
             <ExpandableSection title="Activity Feed" icon="📊" defaultExpanded={true}>
-              <div className="max-h-[400px] overflow-y-auto">
+              <div className="max-h-[280px] overflow-y-auto">
                 {activities.length > 0 ? (
-                  <ActivityFeed events={activities} maxHeight="none" />
+                  <ActivityFeed events={[...activities].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())} maxHeight="none" />
                 ) : (
                   <div className="text-center py-8 text-gray-500">
                     <svg className="w-10 h-10 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -537,7 +547,7 @@ export default function ProjectDashboard() {
               </div>
 
               {/* Chat Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div ref={chatMessagesRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                 {/* Welcome Message */}
                 <div className="flex items-start gap-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-r from-sky-500 to-purple-600 flex items-center justify-center flex-shrink-0">

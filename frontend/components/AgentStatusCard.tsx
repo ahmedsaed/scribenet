@@ -27,8 +27,8 @@ const agentColors = {
 };
 
 const statusColors = {
-  idle: { dot: 'bg-gray-400', text: 'text-gray-600' },
-  working: { dot: 'bg-blue-500 animate-pulse', text: 'text-blue-600 font-semibold' },
+  idle: { dot: 'bg-blue-400', text: 'text-blue-600' },
+  working: { dot: 'bg-green-500 animate-pulse', text: 'text-green-600 font-semibold' },
   completed: { dot: 'bg-green-500', text: 'text-green-600 font-semibold' },
   error: { dot: 'bg-red-500', text: 'text-red-600 font-semibold' },
 };
